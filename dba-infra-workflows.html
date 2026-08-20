@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DBA Infrastructure Workflows — Flow Visualizer</title>
+<link rel="stylesheet" href="https://noyitz.github.io/flowstory/templates/style.css">
+</head>
+<body>
+
+<button class="fs-theme-toggle" id="fs-theme">&#9790;</button>
+
+<div class="fs-brand" id="fs-brand"></div>
+<div class="fs-title" id="fs-title"></div>
+
+<div class="fs-panel">
+  <div class="fs-flow-bar">
+    <select id="fs-flow-select"></select>
+    <button class="fs-start" id="fs-play">&#9654; Start</button>
+    <button id="fs-speed">1x</button>
+    <button id="fs-loop" style="border-color:#79c0ff;color:#79c0ff">&#8635; Loop</button>
+    <button class="fs-reset" id="fs-reset">Reset</button>
+  </div>
+  <div class="fs-steps" id="fs-steps">
+    <div class="fs-steps-title">Flow Steps <span style="font-weight:400;font-size:11px;color:var(--fs-text-dim)">· click to jump</span></div>
+    <div id="fs-steps-container"></div>
+  </div>
+  <div class="fs-inspector" id="fs-inspector">
+    <div class="fs-inspector-title" id="fs-inspector-title" style="color:var(--fs-accent)">Playbook</div>
+    <div id="fs-inspector-content"></div>
+  </div>
+</div>
+
+<div id="fs-highlight-box" style="display:none;position:fixed;z-index:350;border-radius:10px;pointer-events:none"></div>
+<div id="fs-overlay" style="display:none;position:fixed;top:0;left:0;right:380px;bottom:0;z-index:300;background:rgba(0,0,0,0.6)">
+  <div id="fs-overlay-card" style="position:absolute;background:#161b22ee;border:1px solid #30363d;border-radius:14px;max-width:420px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <button id="fs-overlay-close" style="position:absolute;top:10px;right:14px;background:none;border:none;color:#8b949e;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px">✕</button>
+    <div id="fs-overlay-accent" style="width:4px;height:24px;border-radius:2px;position:absolute;left:0;top:22px"></div>
+    <h2 id="fs-overlay-title" style="margin:0 0 6px;font-size:18px;color:#c9d1d9;font-family:system-ui"></h2>
+    <p id="fs-overlay-desc" style="margin:0 0 14px;font-size:13px;color:#8b949e;line-height:1.5;font-family:system-ui"></p>
+    <div id="fs-overlay-details" style="font-size:12px;font-family:'SF Mono',Menlo,monospace"></div>
+    <button id="fs-overlay-resume" style="margin-top:14px;padding:7px 20px;border:1px solid #3fb950;border-radius:8px;background:transparent;color:#3fb950;font-size:13px;cursor:pointer;font-family:system-ui">&#9654; Resume Flow</button>
+  </div>
+</div>
+
+<div class="fs-legend" id="fs-legend"></div>
+
+<canvas id="fs-canvas"></canvas>
+
+<script type="module">
+import { FlowStory } from 'https://noyitz.github.io/flowstory/src/index.js';
+
+const diagram = {
+  meta: {
+    title: 'DBA Infrastructure Workflows',
+    author: 'FlowStory',
+    branding: {
+      title: 'DBA Ops'
+    }
+  },
+  canvas: {
+    width: 1540,
+    height: 980
+  },
+  flowOrder: ['overview', 'provisioning', 'patching', 'scale_out', 'decommission'],
+  defaultFlow: 'overview',
+  nodes: {
+    dba: {
+      x: 18,
+      y: 445,
+      w: 110,
+      h: 52,
+      label: 'DBA',
+      type: 'icon',
+      color: '#8b949e'
+    },
+    aap: {
+      x: 145,
+      y: 420,
+      w: 160,
+      h: 90,
+      label: 'AAP',
+      sublabel: 'Ansible Automation Platform',
+      color: '#ee0000',
+      fontSize: 17
+    },
+
+    provision_b: {
+      x: 330,
+      y: 20,
+      w: 1175,
+      h: 255,
+      label: '1. Provisioning & Engine Bootstrap',
+      type: 'boundary',
+      color: '#58a6ff',
+      labelAlign: 'left'
+    },
+    os_tune: {
+      x: 360,
+      y: 95,
+      w: 250,
+      h: 78,
+      label: 'Host OS & Kernel Tuning',
+      sublabel: 'sysctl · hugepages · swappiness',
+      color: '#58a6ff',
+      fontSize: 14,
+      inner: true
+    },
+    storage: {
+      x: 650,
+      y: 95,
+      w: 265,
+      h: 78,
+      label: 'Storage Partitioning',
+      sublabel: 'NVMe/SAN · XFS noatime · fstab',
+      color: '#58a6ff',
+      fontSize: 14,
+      inner: true
+    },
+    engine: {
+      x: 955,
+      y: 95,
+      w: 250,
+      h: 78,
+      label: 'Engine Installation',
+      sublabel: 'binaries · configs · init',
+      color: '#58a6ff',
+      fontSize: 14,
+      inner: true
+    },
+    cluster_ready: {
+      x: 1245,
+      y: 95,
+      w: 225,
+      h: 78,
+      label: 'Cluster Ready',
+      sublabel: 'initialized',
+      color: '#3fb950',
+      fontSize: 15,
+      inner: true
+    },
+
+    patch_b: {
+      x: 330,
+      y: 300,
+      w: 1175,
+      h: 275,
+      label: '2. Host Maintenance & Rolling Patching',
+      type: 'boundary',
+      color: '#f0883e',
+      labelAlign: 'left'
+    },
+    drain: {
+      x: 360,
+      y: 370,
+      w: 250,
+      h: 78,
+      label: 'Isolate & Drain',
+      sublabel: 'demote primary · pause traffic',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    patch: {
+      x: 655,
+      y: 370,
+      w: 250,
+      h: 78,
+      label: 'Patch & Reboot',
+      sublabel: 'kernel · firmware · dnf/apt',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    catchup: {
+      x: 950,
+      y: 370,
+      w: 250,
+      h: 78,
+      label: 'Catch-up Sync',
+      sublabel: 'start DB · lag polling',
+      color: '#79c0ff',
+      fontSize: 14,
+      inner: true
+    },
+    restore: {
+      x: 1245,
+      y: 370,
+      w: 225,
+      h: 78,
+      label: 'Restore Traffic',
+      sublabel: 'proxy reload',
+      color: '#3fb950',
+      fontSize: 15,
+      inner: true
+    },
+    patroni: {
+      x: 360,
+      y: 475,
+      w: 250,
+      h: 62,
+      label: 'Patroni / Orchestrator',
+      sublabel: 'failover trigger',
+      color: '#d2a8ff',
+      fontSize: 13,
+      inner: true
+    },
+    proxy: {
+      x: 655,
+      y: 475,
+      w: 250,
+      h: 62,
+      label: 'HAProxy / PgBouncer',
+      sublabel: 'pooler drain & reload',
+      color: '#8b949e',
+      fontSize: 13,
+      inner: true
+    },
+
+    scale_b: {
+      x: 330,
+      y: 600,
+      w: 1175,
+      h: 350,
+      label: '3. Scaling & Decommissioning',
+      type: 'boundary',
+      color: '#79c0ff',
+      labelAlign: 'left',
+      subBoundaries: [
+        { x: 350, y: 645, w: 1135, h: 125, color: '#79c0ff33' },
+        { x: 350, y: 790, w: 850, h: 125, color: '#f8514933' }
+      ]
+    },
+    compute: {
+      x: 365,
+      y: 670,
+      w: 230,
+      h: 72,
+      label: 'New Compute',
+      sublabel: 'cloud / vSphere',
+      color: '#79c0ff',
+      fontSize: 14,
+      inner: true
+    },
+    backup: {
+      x: 635,
+      y: 670,
+      w: 250,
+      h: 72,
+      label: 'Physical Base Backup',
+      sublabel: 'stream seed',
+      color: '#79c0ff',
+      fontSize: 14,
+      inner: true
+    },
+    replication: {
+      x: 925,
+      y: 670,
+      w: 250,
+      h: 72,
+      label: 'Establish Replication',
+      sublabel: 'replica join',
+      color: '#d2a8ff',
+      fontSize: 14,
+      inner: true
+    },
+    replica: {
+      x: 1215,
+      y: 670,
+      w: 250,
+      h: 72,
+      label: 'Replica In Service',
+      sublabel: 'online',
+      color: '#3fb950',
+      fontSize: 15,
+      inner: true
+    },
+    detach: {
+      x: 365,
+      y: 815,
+      w: 230,
+      h: 72,
+      label: 'Drop from Cluster',
+      sublabel: 'cluster API detach',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    wipe: {
+      x: 635,
+      y: 815,
+      w: 250,
+      h: 72,
+      label: 'Sanitize Disks',
+      sublabel: 'shred / dd mounts',
+      color: '#f85149',
+      fontSize: 14,
+      inner: true
+    },
+    teardown: {
+      x: 925,
+      y: 815,
+      w: 250,
+      h: 72,
+      label: 'Terminate Instance',
+      sublabel: 'compute teardown',
+      color: '#f85149',
+      fontSize: 14,
+      inner: true
+    }
+  },
+  tooltips: {
+    dba: {
+      title: 'DBA',
+      description: 'Database operator who requests provisioning, rolling patch windows, scale-out, or host retirement.',
+      details: [
+        ['Role', 'Change initiator'],
+        ['Interface', 'AAP job templates']
+      ]
+    },
+    aap: {
+      title: 'Ansible Automation Platform',
+      description: 'Orchestrates DBA infrastructure playbooks: bootstrap, rolling patch, replica seed, and sanitized teardown.',
+      details: [
+        ['Platform', 'AAP'],
+        ['Targets', 'db_cluster hosts']
+      ]
+    },
+    os_tune: {
+      title: 'Host OS & Kernel Tuning',
+      description: 'Apply sysctl, hugepages, swappiness, and disk scheduler settings before the engine is installed.',
+      details: [
+        ['Tasks', 'sysctl · hugepages · swappiness · disk schedulers'],
+        ['Ansible', 'ansible.posix.sysctl + system tuning roles']
+      ]
+    },
+    storage: {
+      title: 'Storage Partitioning & Mounts',
+      description: 'Format NVMe/SAN disks, create XFS with noatime, and persist mounts in /etc/fstab.',
+      details: [
+        ['Tasks', 'Format disks · XFS noatime · /etc/fstab'],
+        ['Ansible', 'community.general.parted + ansible.posix.mount']
+      ]
+    },
+    engine: {
+      title: 'Engine Installation',
+      description: 'Deploy database binaries, write baseline configs from Jinja2 templates, and initialize the cluster.',
+      details: [
+        ['Tasks', 'Deploy binaries · baseline configs · initialize cluster'],
+        ['Ansible', 'Engine installation roles + Jinja2 parameter templates']
+      ]
+    },
+    cluster_ready: {
+      title: 'Cluster Ready',
+      description: 'Bootstrap complete: engine is installed, configs are written, and the cluster is initialized.',
+      details: [
+        ['State', 'Initialized'],
+        ['Next', 'Accept traffic / add replicas']
+      ]
+    },
+    drain: {
+      title: 'Workload Isolation & Node Drain',
+      description: 'Demote primary nodes, pause engine traffic, and drain active poolers before a maintenance window.',
+      details: [
+        ['Tasks', 'Demote primary · pause traffic · drain poolers'],
+        ['Ansible', 'Patroni/Orchestrator failover + HAProxy/PgBouncer updates']
+      ]
+    },
+    patroni: {
+      title: 'Patroni / Orchestrator',
+      description: 'Cluster failover trigger used to demote a primary and keep a healthy leader during rolling work.',
+      details: [
+        ['Role', 'HA failover'],
+        ['Used by', 'Isolation & drain']
+      ]
+    },
+    proxy: {
+      title: 'HAProxy / PgBouncer',
+      description: 'Connection poolers are drained before patching and reloaded after the node catches up.',
+      details: [
+        ['Role', 'Traffic control'],
+        ['Actions', 'Drain · pause · reload']
+      ]
+    },
+    patch: {
+      title: 'Patching & Reboot Execution',
+      description: 'Apply OS kernel updates and firmware/hypervisor patches, then perform a safe reboot.',
+      details: [
+        ['Tasks', 'Kernel updates · firmware/hypervisor patches · safe reboot'],
+        ['Ansible', 'dnf/apt + ansible.builtin.reboot']
+      ]
+    },
+    catchup: {
+      title: 'Re-integration & Catch-up Sync',
+      description: 'Start the database service, poll replication lag until the node is current, then restore proxy traffic.',
+      details: [
+        ['Tasks', 'Start DB · monitor lag · restore proxy traffic'],
+        ['Ansible', 'Service management + status polling loops + proxy reload']
+      ]
+    },
+    restore: {
+      title: 'Restore Traffic',
+      description: 'Node is healthy, lag is caught up, and poolers send traffic again.',
+      details: [
+        ['State', 'In service'],
+        ['Action', 'HAProxy / PgBouncer reload']
+      ]
+    },
+    compute: {
+      title: 'Replica Provisioning — New Compute',
+      description: 'Spin up new compute for a replica via cloud or vSphere provisioning modules.',
+      details: [
+        ['Tasks', 'Spin up new compute'],
+        ['Ansible', 'Cloud / vSphere provisioning modules']
+      ]
+    },
+    backup: {
+      title: 'Physical Base Backup',
+      description: 'Stream a physical base backup onto the new host to seed the replica.',
+      details: [
+        ['Tasks', 'Stream physical base backup'],
+        ['Ansible', 'Base backup execution playbooks']
+      ]
+    },
+    replication: {
+      title: 'Establish Replication',
+      description: 'Wire the seeded host into streaming replication and wait until it is a valid replica.',
+      details: [
+        ['Tasks', 'Establish replication'],
+        ['Ansible', 'Cluster join / replication playbooks']
+      ]
+    },
+    replica: {
+      title: 'Replica In Service',
+      description: 'New replica is online and available for read traffic or HA promotion.',
+      details: [
+        ['State', 'Online'],
+        ['Role', 'Replica']
+      ]
+    },
+    detach: {
+      title: 'Host Decommissioning — Drop from Cluster',
+      description: 'Gracefully remove the node from the cluster before wiping disks and tearing down compute.',
+      details: [
+        ['Tasks', 'Gracefully drop node from cluster'],
+        ['Ansible', 'Cluster API detachment calls']
+      ]
+    },
+    wipe: {
+      title: 'Sanitize Disks',
+      description: 'Wipe data mounts so retired hosts do not leave residual database files.',
+      details: [
+        ['Tasks', 'Wipe data mounts'],
+        ['Ansible', 'Secure disk wiping (shred/dd)']
+      ]
+    },
+    teardown: {
+      title: 'Terminate Instance',
+      description: 'Tear down the compute instance after cluster detach and disk sanitization.',
+      details: [
+        ['Tasks', 'Terminate instance'],
+        ['Ansible', 'Compute teardown']
+      ]
+    }
+  },
+  legend: [
+    { label: 'Provisioning', color: '#58a6ff' },
+    { label: 'Patching', color: '#f0883e' },
+    { label: 'Scaling', color: '#79c0ff' },
+    { label: 'Decommission', color: '#f85149' },
+    { label: 'Cluster / HA', color: '#d2a8ff' },
+    { label: 'Healthy', color: '#3fb950' }
+  ],
+  flows: {
+    overview: {
+      label: 'Overview — all workflows',
+      steps: [
+        {
+          text: 'DBA requests infrastructure work through AAP job templates',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'AAP can run Provisioning & Engine Bootstrap',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'os_tune',
+          color: '#58a6ff',
+          num: 2,
+          fromTop: true,
+          toLeft: true,
+          glow: 'provision_b'
+        },
+        {
+          text: 'AAP can run Host Maintenance & Rolling Patching',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'drain',
+          color: '#f0883e',
+          num: 3,
+          fromRight: true,
+          toLeft: true,
+          glow: 'patch_b'
+        },
+        {
+          text: 'AAP can provision a replica (scale-out)',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'compute',
+          color: '#79c0ff',
+          num: 4,
+          fromBottom: true,
+          toLeft: true,
+          glow: 'scale_b'
+        },
+        {
+          text: 'AAP can decommission and sanitize a retired host',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'detach',
+          color: '#f85149',
+          num: 5,
+          fromBottom: true,
+          toLeft: true,
+          yOff: 18
+        }
+      ]
+    },
+    provisioning: {
+      label: '1. Provisioning & Engine Bootstrap',
+      steps: [
+        {
+          text: 'DBA launches the bootstrap job template',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Apply sysctl, hugepages, swappiness, and disk schedulers',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'os_tune',
+          color: '#58a6ff',
+          num: 2,
+          fromTop: true,
+          toLeft: true,
+          glow: 'provision_b'
+        },
+        {
+          text: 'Format NVMe/SAN disks, XFS noatime, configure /etc/fstab',
+          mode: 'arrow',
+          from: 'os_tune',
+          to: 'storage',
+          color: '#58a6ff',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Deploy DB binaries, write baseline configs, initialize cluster',
+          mode: 'arrow',
+          from: 'storage',
+          to: 'engine',
+          color: '#58a6ff',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Cluster initialized — engine is ready for traffic',
+          mode: 'arrow',
+          from: 'engine',
+          to: 'cluster_ready',
+          color: '#3fb950',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Provisioning complete',
+          mode: 'lightup',
+          target: 'cluster_ready',
+          badge: 6
+        }
+      ]
+    },
+    patching: {
+      label: '2. Host Maintenance & Rolling Patching',
+      steps: [
+        {
+          text: 'DBA starts a rolling patch window',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Isolate the node: demote primary, pause engine traffic',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'drain',
+          color: '#f0883e',
+          num: 2,
+          fromRight: true,
+          toLeft: true,
+          glow: 'patch_b'
+        },
+        {
+          text: 'Trigger Patroni/Orchestrator failover if the node is primary',
+          mode: 'arrow',
+          from: 'drain',
+          to: 'patroni',
+          color: '#d2a8ff',
+          num: 3,
+          fromBottom: true,
+          toTop: true
+        },
+        {
+          text: 'Drain active HAProxy / PgBouncer poolers',
+          mode: 'arrow',
+          from: 'patroni',
+          to: 'proxy',
+          color: '#8b949e',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Apply OS kernel and firmware patches, then safe reboot',
+          mode: 'arrow',
+          from: 'proxy',
+          to: 'patch',
+          color: '#f0883e',
+          num: 5,
+          fromTop: true,
+          toBottom: true
+        },
+        {
+          text: 'Start DB service and poll replication catch-up lag',
+          mode: 'arrow',
+          from: 'patch',
+          to: 'catchup',
+          color: '#79c0ff',
+          num: 6,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Reload proxies and restore traffic to the healthy node',
+          mode: 'arrow',
+          from: 'catchup',
+          to: 'restore',
+          color: '#3fb950',
+          num: 7,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Node re-integrated — rolling patch complete',
+          mode: 'lightup',
+          target: 'restore',
+          badge: 8
+        }
+      ]
+    },
+    scale_out: {
+      label: '3a. Replica Provisioning',
+      steps: [
+        {
+          text: 'DBA requests a new replica',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Spin up new compute (cloud / vSphere)',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'compute',
+          color: '#79c0ff',
+          num: 2,
+          fromBottom: true,
+          toLeft: true,
+          glow: 'scale_b'
+        },
+        {
+          text: 'Stream a physical base backup onto the new host',
+          mode: 'arrow',
+          from: 'compute',
+          to: 'backup',
+          color: '#79c0ff',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Establish streaming replication and join the cluster',
+          mode: 'arrow',
+          from: 'backup',
+          to: 'replication',
+          color: '#d2a8ff',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Replica is online and in service',
+          mode: 'arrow',
+          from: 'replication',
+          to: 'replica',
+          color: '#3fb950',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Scale-out complete',
+          mode: 'lightup',
+          target: 'replica',
+          badge: 6
+        }
+      ]
+    },
+    decommission: {
+      label: '3b. Host Decommissioning',
+      steps: [
+        {
+          text: 'DBA requests host retirement',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Gracefully drop the node from the cluster',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'detach',
+          color: '#f0883e',
+          num: 2,
+          fromBottom: true,
+          toLeft: true,
+          yOff: 18,
+          glow: 'scale_b'
+        },
+        {
+          text: 'Wipe data mounts with shred/dd',
+          mode: 'arrow',
+          from: 'detach',
+          to: 'wipe',
+          color: '#f85149',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Terminate the compute instance',
+          mode: 'arrow',
+          from: 'wipe',
+          to: 'teardown',
+          color: '#f85149',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Host decommissioned and sanitized',
+          mode: 'lightup',
+          target: 'teardown',
+          badge: 5,
+          errColor: '#f85149'
+        }
+      ]
+    }
+  },
+  inspector: {
+    initialState: {
+      phase: 'request',
+      headers: [
+        { value: 'PLAY [dba_infra]', style: 'keep', id: 'h-play' },
+        { value: 'hosts: db_cluster', style: 'keep', id: 'h-hosts' }
+      ],
+      body: [
+        { value: 'gather_facts: true', style: 'keep', id: 'b-facts' }
+      ],
+      cycleState: []
+    },
+    mutations: {
+      overview: [
+        {
+          step: 1,
+          label: 'Job template selected',
+          phase: 'request',
+          actions: [
+            { id: 'h-play', style: 'highlight' }
+          ]
+        },
+        {
+          step: 2,
+          label: 'Provisioning family',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'import_playbook: bootstrap.yml', id: 'b-boot', style: 'add' }
+          ]
+        },
+        {
+          step: 3,
+          label: 'Patching family',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'import_playbook: rolling_patch.yml', id: 'b-patch', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Scale-out family',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'import_playbook: replica_seed.yml', id: 'b-scale', style: 'add' }
+          ]
+        },
+        {
+          step: 5,
+          label: 'Decommission family',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'import_playbook: decommission.yml', id: 'b-decomm', style: 'add' }
+          ]
+        }
+      ],
+      provisioning: [
+        {
+          step: 2,
+          label: 'Host OS & Kernel Tuning',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [bootstrap]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_new', style: 'highlight', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'ansible.posix.sysctl', style: 'add', id: 'b-sysctl' },
+              { value: 'hugepages / swappiness / disk schedulers', style: 'add', id: 'b-tune' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Storage Partitioning',
+          phase: 'request',
+          actions: [
+            { action: 'replaceBody', body: [
+              { value: 'community.general.parted', style: 'add', id: 'b-parted' },
+              { value: 'ansible.posix.mount  (XFS noatime)', style: 'add', id: 'b-mount' },
+              { value: '/etc/fstab persisted', style: 'keep', id: 'b-fstab' }
+            ]}
+          ]
+        },
+        {
+          step: 4,
+          label: 'Engine Installation',
+          phase: 'request',
+          actions: [
+            { action: 'replaceBody', body: [
+              { value: 'engine installation roles', style: 'add', id: 'b-eng' },
+              { value: 'Jinja2 parameter templates', style: 'add', id: 'b-jinja' },
+              { value: 'initialize cluster', style: 'highlight', id: 'b-init' }
+            ]}
+          ]
+        },
+        {
+          step: 6,
+          label: 'Cluster Ready',
+          phase: 'response',
+          actions: [
+            { action: 'replaceBody', body: [
+              { value: 'ok: cluster initialized', style: 'add', id: 'b-ok' }
+            ]}
+          ]
+        }
+      ],
+      patching: [
+        {
+          step: 2,
+          label: 'Isolate & Drain',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [rolling_patch]', style: 'keep', id: 'h-play' },
+              { value: 'serial: 1', style: 'highlight', id: 'h-serial' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'demote primary / pause engine traffic', style: 'add', id: 'b-drain' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Failover',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'Patroni / Orchestrator failover trigger', id: 'b-pat', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Pooler drain',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'HAProxy / PgBouncer drain', id: 'b-proxy', style: 'add' }
+          ]
+        },
+        {
+          step: 5,
+          label: 'Patch & Reboot',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'dnf/apt kernel + firmware patches', id: 'b-pkg', style: 'add' },
+            { action: 'add', target: 'body', value: 'ansible.builtin.reboot', id: 'b-reboot', style: 'highlight' }
+          ]
+        },
+        {
+          step: 6,
+          label: 'Catch-up',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'service start + lag polling loop', id: 'b-lag', style: 'add' }
+          ]
+        },
+        {
+          step: 8,
+          label: 'Traffic restored',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'ok: proxy reload — node in pool', id: 'b-ok', style: 'add' }
+          ]
+        }
+      ],
+      scale_out: [
+        {
+          step: 2,
+          label: 'New compute',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [replica_seed]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_replica_new', style: 'highlight', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'cloud / vSphere provisioning modules', style: 'add', id: 'b-prov' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Base backup',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'physical base backup playbook', id: 'b-bak', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Replication',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'establish streaming replication', id: 'b-repl', style: 'add' }
+          ]
+        },
+        {
+          step: 6,
+          label: 'Replica online',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'ok: replica in service', id: 'b-ok', style: 'add' }
+          ]
+        }
+      ],
+      decommission: [
+        {
+          step: 2,
+          label: 'Detach',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [decommission]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_retire', style: 'highlight', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'cluster API detachment calls', style: 'add', id: 'b-detach' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Sanitize',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'secure wipe: shred / dd', id: 'b-wipe', style: 'err' }
+          ]
+        },
+        {
+          step: 5,
+          label: 'Torn down',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'ok: instance terminated', id: 'b-ok', style: 'add' }
+          ]
+        }
+      ]
+    }
+  }
+};
+
+const viz = new FlowStory(document.getElementById('fs-canvas'), {
+  stepsContainer: document.getElementById('fs-steps-container'),
+  inspectorTitle: document.getElementById('fs-inspector-title'),
+  inspectorContent: document.getElementById('fs-inspector-content'),
+  overlay: document.getElementById('fs-overlay'),
+  overlayCard: document.getElementById('fs-overlay-card'),
+  overlayTitle: document.getElementById('fs-overlay-title'),
+  overlayDesc: document.getElementById('fs-overlay-desc'),
+  overlayDetails: document.getElementById('fs-overlay-details'),
+  overlayAccent: document.getElementById('fs-overlay-accent'),
+  overlayClose: document.getElementById('fs-overlay-close'),
+  overlayResume: document.getElementById('fs-overlay-resume'),
+  highlightBox: document.getElementById('fs-highlight-box'),
+  brand: document.getElementById('fs-brand'),
+  title: document.getElementById('fs-title'),
+  legend: document.getElementById('fs-legend'),
+  flowSelect: document.getElementById('fs-flow-select'),
+  playBtn: document.getElementById('fs-play'),
+  speedBtn: document.getElementById('fs-speed'),
+  loopBtn: document.getElementById('fs-loop'),
+  resetBtn: document.getElementById('fs-reset'),
+  themeBtn: document.getElementById('fs-theme'),
+});
+
+window.__flowstory = viz;
+
+try {
+  await viz.load(diagram);
+
+  viz.state.loopMode = true;
+  const loopBtn = document.getElementById('fs-loop');
+  if (loopBtn) {
+    loopBtn.textContent = '⟳ Loop ON';
+    loopBtn.style.borderColor = '#3fb950';
+    loopBtn.style.color = '#3fb950';
+  }
+  viz.play();
+} catch (e) {
+  console.error('FlowStory load error:', e);
+  document.body.innerHTML = `<div style="padding:40px;color:#f85149;font-family:monospace"><h2>FlowStory Load Error</h2><pre>${e.message}\n\n${e.stack || ''}</pre></div>`;
+}
+</script>
+</body>
+</html>
