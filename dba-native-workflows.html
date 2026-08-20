@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DBA Native Workflows — Flow Visualizer</title>
+<link rel="stylesheet" href="https://noyitz.github.io/flowstory/templates/style.css">
+</head>
+<body>
+
+<button class="fs-theme-toggle" id="fs-theme">&#9790;</button>
+
+<div class="fs-brand" id="fs-brand"></div>
+<div class="fs-title" id="fs-title"></div>
+
+<div class="fs-panel">
+  <div class="fs-flow-bar">
+    <select id="fs-flow-select"></select>
+    <button class="fs-start" id="fs-play">&#9654; Start</button>
+    <button id="fs-speed">1x</button>
+    <button id="fs-loop" style="border-color:#79c0ff;color:#79c0ff">&#8635; Loop</button>
+    <button class="fs-reset" id="fs-reset">Reset</button>
+  </div>
+  <div class="fs-steps" id="fs-steps">
+    <div class="fs-steps-title">Flow Steps <span style="font-weight:400;font-size:11px;color:var(--fs-text-dim)">· click to jump</span></div>
+    <div id="fs-steps-container"></div>
+  </div>
+  <div class="fs-inspector" id="fs-inspector">
+    <div class="fs-inspector-title" id="fs-inspector-title" style="color:var(--fs-accent)">Playbook</div>
+    <div id="fs-inspector-content"></div>
+  </div>
+</div>
+
+<div id="fs-highlight-box" style="display:none;position:fixed;z-index:350;border-radius:10px;pointer-events:none"></div>
+<div id="fs-overlay" style="display:none;position:fixed;top:0;left:0;right:380px;bottom:0;z-index:300;background:rgba(0,0,0,0.6)">
+  <div id="fs-overlay-card" style="position:absolute;background:#161b22ee;border:1px solid #30363d;border-radius:14px;max-width:420px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <button id="fs-overlay-close" style="position:absolute;top:10px;right:14px;background:none;border:none;color:#8b949e;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px">✕</button>
+    <div id="fs-overlay-accent" style="width:4px;height:24px;border-radius:2px;position:absolute;left:0;top:22px"></div>
+    <h2 id="fs-overlay-title" style="margin:0 0 6px;font-size:18px;color:#c9d1d9;font-family:system-ui"></h2>
+    <p id="fs-overlay-desc" style="margin:0 0 14px;font-size:13px;color:#8b949e;line-height:1.5;font-family:system-ui"></p>
+    <div id="fs-overlay-details" style="font-size:12px;font-family:'SF Mono',Menlo,monospace"></div>
+    <button id="fs-overlay-resume" style="margin-top:14px;padding:7px 20px;border:1px solid #3fb950;border-radius:8px;background:transparent;color:#3fb950;font-size:13px;cursor:pointer;font-family:system-ui">&#9654; Resume Flow</button>
+  </div>
+</div>
+
+<div class="fs-legend" id="fs-legend"></div>
+
+<canvas id="fs-canvas"></canvas>
+
+<script type="module">
+import { FlowStory } from 'https://noyitz.github.io/flowstory/src/index.js';
+
+const diagram = {
+  meta: {
+    title: 'DBA Workflows & Ansible Automation',
+    author: 'FlowStory',
+    branding: {
+      title: 'DBA Ops'
+    }
+  },
+  canvas: {
+    width: 1540,
+    height: 1180
+  },
+  flowOrder: ['overview', 'daily', 'weekly', 'monthly', 'quarterly'],
+  defaultFlow: 'overview',
+  nodes: {
+    dba: {
+      x: 18,
+      y: 545,
+      w: 110,
+      h: 52,
+      label: 'DBA',
+      type: 'icon',
+      color: '#8b949e'
+    },
+    aap: {
+      x: 145,
+      y: 520,
+      w: 160,
+      h: 90,
+      label: 'AAP',
+      sublabel: 'Ansible Automation Platform',
+      color: '#ee0000',
+      fontSize: 17
+    },
+
+    daily_b: {
+      x: 330,
+      y: 18,
+      w: 1175,
+      h: 245,
+      label: 'Daily',
+      type: 'boundary',
+      color: '#58a6ff',
+      labelAlign: 'left'
+    },
+    health: {
+      x: 360,
+      y: 85,
+      w: 255,
+      h: 82,
+      label: 'Health & Replication',
+      sublabel: 'scheduled roles + webhooks',
+      color: '#58a6ff',
+      fontSize: 14,
+      inner: true
+    },
+    backup_verify: {
+      x: 650,
+      y: 85,
+      w: 270,
+      h: 82,
+      label: 'Backup Verification',
+      sublabel: 'storage & log parsing',
+      color: '#58a6ff',
+      fontSize: 14,
+      inner: true
+    },
+    alert_resp: {
+      x: 955,
+      y: 85,
+      w: 250,
+      h: 82,
+      label: 'Alert Response',
+      sublabel: 'Event-Driven Ansible',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    eda: {
+      x: 1240,
+      y: 85,
+      w: 230,
+      h: 82,
+      label: 'AAP EDA',
+      sublabel: 'webhook → rulebook',
+      color: '#d2a8ff',
+      fontSize: 15,
+      inner: true
+    },
+
+    weekly_b: {
+      x: 330,
+      y: 285,
+      w: 1175,
+      h: 245,
+      label: 'Weekly',
+      type: 'boundary',
+      color: '#79c0ff',
+      labelAlign: 'left'
+    },
+    np_patch: {
+      x: 360,
+      y: 355,
+      w: 255,
+      h: 82,
+      label: 'Non-Prod Patching',
+      sublabel: 'OS/DB rolling updates',
+      color: '#79c0ff',
+      fontSize: 14,
+      inner: true
+    },
+    idx_stats: {
+      x: 650,
+      y: 355,
+      w: 270,
+      h: 82,
+      label: 'Index & Stats',
+      sublabel: 'SQL template runners',
+      color: '#79c0ff',
+      fontSize: 14,
+      inner: true
+    },
+    storage: {
+      x: 955,
+      y: 355,
+      w: 250,
+      h: 82,
+      label: 'Storage Cleanup',
+      sublabel: 'file / mount rotations',
+      color: '#79c0ff',
+      fontSize: 14,
+      inner: true
+    },
+    weekly_done: {
+      x: 1240,
+      y: 355,
+      w: 230,
+      h: 82,
+      label: 'Weekly Complete',
+      sublabel: 'non-prod maintained',
+      color: '#3fb950',
+      fontSize: 14,
+      inner: true
+    },
+
+    monthly_b: {
+      x: 330,
+      y: 550,
+      w: 1175,
+      h: 245,
+      label: 'Monthly',
+      type: 'boundary',
+      color: '#f0883e',
+      labelAlign: 'left'
+    },
+    prod_patch: {
+      x: 360,
+      y: 620,
+      w: 255,
+      h: 82,
+      label: 'Prod Rolling Patch',
+      sublabel: 'failover + orchestration',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    restore_drill: {
+      x: 650,
+      y: 620,
+      w: 270,
+      h: 82,
+      label: 'Backup Restore Drill',
+      sublabel: 'ephemeral VM restore',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    iam_audit: {
+      x: 955,
+      y: 620,
+      w: 250,
+      h: 82,
+      label: 'User Access Audit',
+      sublabel: 'facts + IAM diff report',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    monthly_done: {
+      x: 1240,
+      y: 620,
+      w: 230,
+      h: 82,
+      label: 'Monthly Complete',
+      sublabel: 'prod + audit signed',
+      color: '#3fb950',
+      fontSize: 14,
+      inner: true
+    },
+
+    quarterly_b: {
+      x: 330,
+      y: 815,
+      w: 1175,
+      h: 330,
+      label: 'Quarterly',
+      type: 'boundary',
+      color: '#d2a8ff',
+      labelAlign: 'left'
+    },
+    upgrade: {
+      x: 360,
+      y: 900,
+      w: 255,
+      h: 82,
+      label: 'Major Version Upgrade',
+      sublabel: 'blue/green pipelines',
+      color: '#d2a8ff',
+      fontSize: 14,
+      inner: true
+    },
+    dr_drill: {
+      x: 650,
+      y: 900,
+      w: 270,
+      h: 82,
+      label: 'DR Failover Drill',
+      sublabel: 'full-stack cutover',
+      color: '#d2a8ff',
+      fontSize: 14,
+      inner: true
+    },
+    cis: {
+      x: 955,
+      y: 900,
+      w: 250,
+      h: 82,
+      label: 'Compliance Hardening',
+      sublabel: 'CIS / STIG baselines',
+      color: '#8b949e',
+      fontSize: 14,
+      inner: true
+    },
+    quarterly_done: {
+      x: 1240,
+      y: 900,
+      w: 230,
+      h: 82,
+      label: 'Quarterly Complete',
+      sublabel: 'upgrade · DR · harden',
+      color: '#3fb950',
+      fontSize: 14,
+      inner: true
+    }
+  },
+  tooltips: {
+    dba: {
+      title: 'DBA',
+      description: 'Owns the native operations cadence: daily checks, weekly hygiene, monthly prod change, and quarterly drills.',
+      details: [
+        ['Role', 'Operations owner'],
+        ['Interface', 'AAP schedules, job templates, EDA']
+      ]
+    },
+    aap: {
+      title: 'Ansible Automation Platform',
+      description: 'Schedules roles, runs rolling playbooks, spins ephemeral restore labs, and consumes EDA webhooks for alert response.',
+      details: [
+        ['Platform', 'AAP'],
+        ['Cadence', 'Daily · Weekly · Monthly · Quarterly']
+      ]
+    },
+    health: {
+      title: 'Health & Replication Checks',
+      description: 'Confirm engine health and replica lag on a daily schedule, then fire webhook alerts on failure.',
+      details: [
+        ['Cadence', 'Daily'],
+        ['Ansible', 'Scheduled roles & webhook alerts']
+      ]
+    },
+    backup_verify: {
+      title: 'Backup Verification',
+      description: 'Prove last-night backups exist and are readable by checking storage and parsing backup logs.',
+      details: [
+        ['Cadence', 'Daily'],
+        ['Ansible', 'Storage modules & log parsing']
+      ]
+    },
+    alert_resp: {
+      title: 'Alert Response',
+      description: 'Incoming health/backup alerts are handled automatically instead of waiting for a ticket queue.',
+      details: [
+        ['Cadence', 'Daily'],
+        ['Ansible', 'Event-Driven Ansible (EDA)']
+      ]
+    },
+    eda: {
+      title: 'AAP Event-Driven Ansible',
+      description: 'Webhook events from monitors trigger rulebooks that run response playbooks without a human click.',
+      details: [
+        ['Pattern', 'Webhook → rulebook → job'],
+        ['Source', 'Health & backup alerts']
+      ]
+    },
+    np_patch: {
+      title: 'Non-Prod OS/DB Patching',
+      description: 'Roll OS and database patches through non-production first, using rolling update playbooks.',
+      details: [
+        ['Cadence', 'Weekly'],
+        ['Ansible', 'Rolling update playbooks']
+      ]
+    },
+    idx_stats: {
+      title: 'Index & Stats Maintenance',
+      description: 'Rebuild or reindex as needed and refresh planner statistics via templated SQL.',
+      details: [
+        ['Cadence', 'Weekly'],
+        ['Ansible', 'SQL template runners']
+      ]
+    },
+    storage: {
+      title: 'Storage Cleanup & Rotations',
+      description: 'Rotate logs, expire aged files, and keep mounts within capacity.',
+      details: [
+        ['Cadence', 'Weekly'],
+        ['Ansible', 'File / mount modules']
+      ]
+    },
+    weekly_done: {
+      title: 'Weekly Complete',
+      description: 'Non-prod is patched, stats are current, and storage rotations finished.',
+      details: [
+        ['State', 'Weekly hygiene done'],
+        ['Next', 'Monthly prod window']
+      ]
+    },
+    prod_patch: {
+      title: 'Production Rolling Patching',
+      description: 'Cluster-aware failover, then patch one node at a time so production stays up.',
+      details: [
+        ['Cadence', 'Monthly'],
+        ['Ansible', 'Cluster-aware failover & patch orchestration']
+      ]
+    },
+    restore_drill: {
+      title: 'Backup Restore Drills',
+      description: 'Stand up a throwaway VM, restore a backup, prove recoverability, then destroy the lab.',
+      details: [
+        ['Cadence', 'Monthly'],
+        ['Ansible', 'Ephemeral VM spinup, restore, & destruction']
+      ]
+    },
+    iam_audit: {
+      title: 'User Access Auditing',
+      description: 'Gather engine/IAM facts and diff against expected access to catch drift.',
+      details: [
+        ['Cadence', 'Monthly'],
+        ['Ansible', 'Fact gathering & IAM diff reports']
+      ]
+    },
+    monthly_done: {
+      title: 'Monthly Complete',
+      description: 'Production is patched, restore was proven, and access drift is reported.',
+      details: [
+        ['State', 'Monthly ops signed off'],
+        ['Next', 'Quarterly drills']
+      ]
+    },
+    upgrade: {
+      title: 'Major Version Upgrades',
+      description: 'Move the engine to a new major version using a blue/green pipeline instead of in-place risk.',
+      details: [
+        ['Cadence', 'Quarterly'],
+        ['Ansible', 'Blue/green deployment pipelines']
+      ]
+    },
+    dr_drill: {
+      title: 'DR Site Failover Drills',
+      description: 'Cut the full stack to the DR site and back to prove RTO/RPO, not just a paper plan.',
+      details: [
+        ['Cadence', 'Quarterly'],
+        ['Ansible', 'Full-stack infrastructure cutovers']
+      ]
+    },
+    cis: {
+      title: 'Compliance Hardening',
+      description: 'Re-apply CIS/STIG security baselines and report remaining exceptions.',
+      details: [
+        ['Cadence', 'Quarterly'],
+        ['Ansible', 'CIS/STIG security baseline roles']
+      ]
+    },
+    quarterly_done: {
+      title: 'Quarterly Complete',
+      description: 'Major upgrade path exercised, DR cutover proven, and hardening baselines applied.',
+      details: [
+        ['State', 'Quarterly program complete'],
+        ['Evidence', 'Upgrade · DR · CIS/STIG']
+      ]
+    }
+  },
+  legend: [
+    { label: 'Daily', color: '#58a6ff' },
+    { label: 'Weekly', color: '#79c0ff' },
+    { label: 'Monthly', color: '#f0883e' },
+    { label: 'Quarterly', color: '#d2a8ff' },
+    { label: 'EDA / Alerts', color: '#d2a8ff' },
+    { label: 'Complete', color: '#3fb950' }
+  ],
+  flows: {
+    overview: {
+      label: 'Overview — all cadences',
+      steps: [
+        {
+          text: 'DBA operates native workflows through AAP schedules and EDA',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Daily: health, backup verify, EDA alert response',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'health',
+          color: '#58a6ff',
+          num: 2,
+          fromTop: true,
+          toLeft: true,
+          glow: 'daily_b'
+        },
+        {
+          text: 'Weekly: non-prod patch, stats, storage rotation',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'np_patch',
+          color: '#79c0ff',
+          num: 3,
+          fromRight: true,
+          toLeft: true,
+          glow: 'weekly_b'
+        },
+        {
+          text: 'Monthly: prod rolling patch, restore drills, IAM audit',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'prod_patch',
+          color: '#f0883e',
+          num: 4,
+          fromRight: true,
+          toLeft: true,
+          yOff: 12,
+          glow: 'monthly_b'
+        },
+        {
+          text: 'Quarterly: blue/green upgrade, DR cutover, CIS/STIG',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'upgrade',
+          color: '#d2a8ff',
+          num: 5,
+          fromBottom: true,
+          toLeft: true,
+          glow: 'quarterly_b'
+        }
+      ]
+    },
+    daily: {
+      label: 'Daily',
+      steps: [
+        {
+          text: 'Scheduled daily jobs start in AAP',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Health & replication checks via scheduled roles and webhooks',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'health',
+          color: '#58a6ff',
+          num: 2,
+          fromTop: true,
+          toLeft: true,
+          glow: 'daily_b'
+        },
+        {
+          text: 'Backup verification: storage modules and log parsing',
+          mode: 'arrow',
+          from: 'health',
+          to: 'backup_verify',
+          color: '#58a6ff',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Alert response is handed to Event-Driven Ansible',
+          mode: 'arrow',
+          from: 'backup_verify',
+          to: 'alert_resp',
+          color: '#f0883e',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'EDA consumes webhooks and runs the response rulebook',
+          mode: 'arrow',
+          from: 'alert_resp',
+          to: 'eda',
+          color: '#d2a8ff',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Daily cadence complete',
+          mode: 'lightup',
+          target: 'eda',
+          badge: 6
+        }
+      ]
+    },
+    weekly: {
+      label: 'Weekly',
+      steps: [
+        {
+          text: 'Weekly hygiene window starts',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Non-prod OS/DB patching with rolling update playbooks',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'np_patch',
+          color: '#79c0ff',
+          num: 2,
+          fromRight: true,
+          toLeft: true,
+          glow: 'weekly_b'
+        },
+        {
+          text: 'Index and stats maintenance via SQL template runners',
+          mode: 'arrow',
+          from: 'np_patch',
+          to: 'idx_stats',
+          color: '#79c0ff',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Storage cleanup and rotations with file/mount modules',
+          mode: 'arrow',
+          from: 'idx_stats',
+          to: 'storage',
+          color: '#79c0ff',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Weekly maintenance complete',
+          mode: 'arrow',
+          from: 'storage',
+          to: 'weekly_done',
+          color: '#3fb950',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Non-prod maintained',
+          mode: 'lightup',
+          target: 'weekly_done',
+          badge: 6
+        }
+      ]
+    },
+    monthly: {
+      label: 'Monthly',
+      steps: [
+        {
+          text: 'Monthly production window starts',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Production rolling patch: cluster-aware failover and orchestration',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'prod_patch',
+          color: '#f0883e',
+          num: 2,
+          fromRight: true,
+          toLeft: true,
+          yOff: 12,
+          glow: 'monthly_b'
+        },
+        {
+          text: 'Backup restore drill: spin up VM, restore, destroy',
+          mode: 'arrow',
+          from: 'prod_patch',
+          to: 'restore_drill',
+          color: '#f0883e',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'User access audit: fact gathering and IAM diff reports',
+          mode: 'arrow',
+          from: 'restore_drill',
+          to: 'iam_audit',
+          color: '#f0883e',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Monthly cadence complete',
+          mode: 'arrow',
+          from: 'iam_audit',
+          to: 'monthly_done',
+          color: '#3fb950',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Prod patch + restore + audit signed off',
+          mode: 'lightup',
+          target: 'monthly_done',
+          badge: 6
+        }
+      ]
+    },
+    quarterly: {
+      label: 'Quarterly',
+      steps: [
+        {
+          text: 'Quarterly program starts',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Major version upgrade via blue/green deployment pipelines',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'upgrade',
+          color: '#d2a8ff',
+          num: 2,
+          fromBottom: true,
+          toLeft: true,
+          glow: 'quarterly_b'
+        },
+        {
+          text: 'DR site failover drill: full-stack infrastructure cutover',
+          mode: 'arrow',
+          from: 'upgrade',
+          to: 'dr_drill',
+          color: '#d2a8ff',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Compliance hardening with CIS/STIG security baseline roles',
+          mode: 'arrow',
+          from: 'dr_drill',
+          to: 'cis',
+          color: '#8b949e',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Quarterly program complete',
+          mode: 'arrow',
+          from: 'cis',
+          to: 'quarterly_done',
+          color: '#3fb950',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Upgrade · DR · hardening signed off',
+          mode: 'lightup',
+          target: 'quarterly_done',
+          badge: 6
+        }
+      ]
+    }
+  },
+  inspector: {
+    initialState: {
+      phase: 'request',
+      headers: [
+        { value: 'PLAY [dba_native_ops]', style: 'keep', id: 'h-play' },
+        { value: 'hosts: db_cluster', style: 'keep', id: 'h-hosts' }
+      ],
+      body: [
+        { value: 'gather_facts: true', style: 'keep', id: 'b-facts' }
+      ],
+      cycleState: []
+    },
+    mutations: {
+      overview: [
+        {
+          step: 1,
+          label: 'Cadence selected',
+          phase: 'request',
+          actions: [
+            { id: 'h-play', style: 'highlight' }
+          ]
+        },
+        {
+          step: 2,
+          label: 'Daily',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'schedule: daily  health.yml + backup_verify.yml', id: 'b-d', style: 'add' }
+          ]
+        },
+        {
+          step: 3,
+          label: 'Weekly',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'schedule: weekly  rolling_update.yml', id: 'b-w', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Monthly',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'schedule: monthly  prod_patch.yml + restore_drill.yml', id: 'b-m', style: 'add' }
+          ]
+        },
+        {
+          step: 5,
+          label: 'Quarterly',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'schedule: quarterly  bluegreen.yml + dr_cutover.yml + cis.yml', id: 'b-q', style: 'add' }
+          ]
+        }
+      ],
+      daily: [
+        {
+          step: 2,
+          label: 'Health',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [daily]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_cluster', style: 'keep', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'scheduled health & replication roles', style: 'add', id: 'b-h' },
+              { value: 'webhook alerts on failure', style: 'add', id: 'b-wh' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Backup verify',
+          phase: 'request',
+          actions: [
+            { action: 'replaceBody', body: [
+              { value: 'storage modules: last backup present', style: 'add', id: 'b-st' },
+              { value: 'parse backup logs', style: 'add', id: 'b-log' }
+            ]}
+          ]
+        },
+        {
+          step: 5,
+          label: 'EDA',
+          phase: 'response',
+          actions: [
+            { action: 'replaceBody', body: [
+              { value: 'Event-Driven Ansible rulebook', style: 'add', id: 'b-eda' },
+              { value: 'ok: webhook consumed', style: 'add', id: 'b-ok' }
+            ]}
+          ]
+        }
+      ],
+      weekly: [
+        {
+          step: 2,
+          label: 'Non-prod patch',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [weekly]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_nonprod', style: 'highlight', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'rolling update playbooks (OS/DB)', style: 'add', id: 'b-ru' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Stats',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'SQL template runners: index & stats', id: 'b-sql', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Storage',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'file/mount modules: cleanup & rotation', id: 'b-fm', style: 'add' }
+          ]
+        },
+        {
+          step: 6,
+          label: 'Done',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'ok: weekly hygiene complete', id: 'b-ok', style: 'add' }
+          ]
+        }
+      ],
+      monthly: [
+        {
+          step: 2,
+          label: 'Prod patch',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [monthly]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_prod  serial: 1', style: 'highlight', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'cluster-aware failover & patch orchestration', style: 'add', id: 'b-fo' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Restore drill',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'ephemeral VM spinup → restore → destroy', id: 'b-vm', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'IAM audit',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'fact gathering & IAM diff reports', id: 'b-iam', style: 'add' }
+          ]
+        },
+        {
+          step: 6,
+          label: 'Done',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'ok: monthly window complete', id: 'b-ok', style: 'add' }
+          ]
+        }
+      ],
+      quarterly: [
+        {
+          step: 2,
+          label: 'Upgrade',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [quarterly]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_prod:db_dr', style: 'highlight', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'blue/green deployment pipeline', style: 'add', id: 'b-bg' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'DR drill',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'full-stack infrastructure cutover', id: 'b-dr', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Hardening',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'CIS/STIG security baseline roles', id: 'b-cis', style: 'add' }
+          ]
+        },
+        {
+          step: 6,
+          label: 'Done',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'ok: quarterly program complete', id: 'b-ok', style: 'add' }
+          ]
+        }
+      ]
+    }
+  }
+};
+
+const viz = new FlowStory(document.getElementById('fs-canvas'), {
+  stepsContainer: document.getElementById('fs-steps-container'),
+  inspectorTitle: document.getElementById('fs-inspector-title'),
+  inspectorContent: document.getElementById('fs-inspector-content'),
+  overlay: document.getElementById('fs-overlay'),
+  overlayCard: document.getElementById('fs-overlay-card'),
+  overlayTitle: document.getElementById('fs-overlay-title'),
+  overlayDesc: document.getElementById('fs-overlay-desc'),
+  overlayDetails: document.getElementById('fs-overlay-details'),
+  overlayAccent: document.getElementById('fs-overlay-accent'),
+  overlayClose: document.getElementById('fs-overlay-close'),
+  overlayResume: document.getElementById('fs-overlay-resume'),
+  highlightBox: document.getElementById('fs-highlight-box'),
+  brand: document.getElementById('fs-brand'),
+  title: document.getElementById('fs-title'),
+  legend: document.getElementById('fs-legend'),
+  flowSelect: document.getElementById('fs-flow-select'),
+  playBtn: document.getElementById('fs-play'),
+  speedBtn: document.getElementById('fs-speed'),
+  loopBtn: document.getElementById('fs-loop'),
+  resetBtn: document.getElementById('fs-reset'),
+  themeBtn: document.getElementById('fs-theme'),
+});
+
+window.__flowstory = viz;
+
+try {
+  await viz.load(diagram);
+
+  viz.state.loopMode = true;
+  const loopBtn = document.getElementById('fs-loop');
+  if (loopBtn) {
+    loopBtn.textContent = '⟳ Loop ON';
+    loopBtn.style.borderColor = '#3fb950';
+    loopBtn.style.color = '#3fb950';
+  }
+  viz.play();
+} catch (e) {
+  console.error('FlowStory load error:', e);
+  document.body.innerHTML = `<div style="padding:40px;color:#f85149;font-family:monospace"><h2>FlowStory Load Error</h2><pre>${e.message}\n\n${e.stack || ''}</pre></div>`;
+}
+</script>
+</body>
+</html>
