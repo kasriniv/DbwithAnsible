@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DBA Application Maintenance Workflows — Flow Visualizer</title>
+<link rel="stylesheet" href="https://noyitz.github.io/flowstory/templates/style.css">
+</head>
+<body>
+
+<button class="fs-theme-toggle" id="fs-theme">&#9790;</button>
+
+<div class="fs-brand" id="fs-brand"></div>
+<div class="fs-title" id="fs-title"></div>
+
+<div class="fs-panel">
+  <div class="fs-flow-bar">
+    <select id="fs-flow-select"></select>
+    <button class="fs-start" id="fs-play">&#9654; Start</button>
+    <button id="fs-speed">1x</button>
+    <button id="fs-loop" style="border-color:#79c0ff;color:#79c0ff">&#8635; Loop</button>
+    <button class="fs-reset" id="fs-reset">Reset</button>
+  </div>
+  <div class="fs-steps" id="fs-steps">
+    <div class="fs-steps-title">Flow Steps <span style="font-weight:400;font-size:11px;color:var(--fs-text-dim)">· click to jump</span></div>
+    <div id="fs-steps-container"></div>
+  </div>
+  <div class="fs-inspector" id="fs-inspector">
+    <div class="fs-inspector-title" id="fs-inspector-title" style="color:var(--fs-accent)">Playbook</div>
+    <div id="fs-inspector-content"></div>
+  </div>
+</div>
+
+<div id="fs-highlight-box" style="display:none;position:fixed;z-index:350;border-radius:10px;pointer-events:none"></div>
+<div id="fs-overlay" style="display:none;position:fixed;top:0;left:0;right:380px;bottom:0;z-index:300;background:rgba(0,0,0,0.6)">
+  <div id="fs-overlay-card" style="position:absolute;background:#161b22ee;border:1px solid #30363d;border-radius:14px;max-width:420px;padding:22px 26px;box-shadow:0 12px 40px rgba(0,0,0,0.5)">
+    <button id="fs-overlay-close" style="position:absolute;top:10px;right:14px;background:none;border:none;color:#8b949e;font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px">✕</button>
+    <div id="fs-overlay-accent" style="width:4px;height:24px;border-radius:2px;position:absolute;left:0;top:22px"></div>
+    <h2 id="fs-overlay-title" style="margin:0 0 6px;font-size:18px;color:#c9d1d9;font-family:system-ui"></h2>
+    <p id="fs-overlay-desc" style="margin:0 0 14px;font-size:13px;color:#8b949e;line-height:1.5;font-family:system-ui"></p>
+    <div id="fs-overlay-details" style="font-size:12px;font-family:'SF Mono',Menlo,monospace"></div>
+    <button id="fs-overlay-resume" style="margin-top:14px;padding:7px 20px;border:1px solid #3fb950;border-radius:8px;background:transparent;color:#3fb950;font-size:13px;cursor:pointer;font-family:system-ui">&#9654; Resume Flow</button>
+  </div>
+</div>
+
+<div class="fs-legend" id="fs-legend"></div>
+
+<canvas id="fs-canvas"></canvas>
+
+<script type="module">
+import { FlowStory } from 'https://noyitz.github.io/flowstory/src/index.js';
+
+const diagram = {
+  meta: {
+    title: 'DBA Application Maintenance Workflows',
+    author: 'FlowStory',
+    branding: {
+      title: 'DBA Ops'
+    }
+  },
+  canvas: {
+    width: 1540,
+    height: 1180
+  },
+  flowOrder: ['overview', 'pre_deploy', 'deploy', 'post_deploy', 'rollback'],
+  defaultFlow: 'overview',
+  nodes: {
+    dba: {
+      x: 18,
+      y: 545,
+      w: 110,
+      h: 52,
+      label: 'DBA',
+      type: 'icon',
+      color: '#8b949e'
+    },
+    aap: {
+      x: 145,
+      y: 520,
+      w: 160,
+      h: 90,
+      label: 'AAP',
+      sublabel: 'Ansible Automation Platform',
+      color: '#ee0000',
+      fontSize: 17
+    },
+
+    pre_b: {
+      x: 330,
+      y: 18,
+      w: 1175,
+      h: 245,
+      label: '1. Pre-Deployment Preparation',
+      type: 'boundary',
+      color: '#58a6ff',
+      labelAlign: 'left'
+    },
+    review: {
+      x: 360,
+      y: 85,
+      w: 255,
+      h: 82,
+      label: 'Review DDL/DML',
+      sublabel: 'scripts & execution plans',
+      color: '#58a6ff',
+      fontSize: 14,
+      inner: true
+    },
+    snapshots: {
+      x: 650,
+      y: 85,
+      w: 270,
+      h: 82,
+      label: 'DR Rollback Points',
+      sublabel: 'snapshots & logical backups',
+      color: '#58a6ff',
+      fontSize: 14,
+      inner: true
+    },
+    timeouts: {
+      x: 955,
+      y: 85,
+      w: 250,
+      h: 82,
+      label: 'Prepare Engine',
+      sublabel: 'statement / lock timeouts',
+      color: '#58a6ff',
+      fontSize: 14,
+      inner: true
+    },
+    ready: {
+      x: 1240,
+      y: 85,
+      w: 230,
+      h: 82,
+      label: 'Ready to Deploy',
+      sublabel: 'gates passed',
+      color: '#3fb950',
+      fontSize: 15,
+      inner: true
+    },
+
+    deploy_b: {
+      x: 330,
+      y: 285,
+      w: 1175,
+      h: 270,
+      label: '2. Active Deployment Execution',
+      type: 'boundary',
+      color: '#f0883e',
+      labelAlign: 'left'
+    },
+    drain: {
+      x: 360,
+      y: 355,
+      w: 255,
+      h: 78,
+      label: 'Traffic Control',
+      sublabel: 'drain proxies · read-only',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    migrate: {
+      x: 655,
+      y: 355,
+      w: 270,
+      h: 78,
+      label: 'Schema / Data Migration',
+      sublabel: 'blue-green · seed scripts',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    locks: {
+      x: 960,
+      y: 355,
+      w: 250,
+      h: 78,
+      label: 'Lock Contention',
+      sublabel: 'kill orphan / blockers',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    deployed: {
+      x: 1245,
+      y: 355,
+      w: 225,
+      h: 78,
+      label: 'Migration Applied',
+      sublabel: 'awaiting verify',
+      color: '#79c0ff',
+      fontSize: 14,
+      inner: true
+    },
+    proxy: {
+      x: 360,
+      y: 455,
+      w: 255,
+      h: 62,
+      label: 'PgBouncer / ProxySQL',
+      sublabel: 'connection drain & flags',
+      color: '#8b949e',
+      fontSize: 13,
+      inner: true
+    },
+
+    post_b: {
+      x: 330,
+      y: 575,
+      w: 1175,
+      h: 245,
+      label: '3. Post-Deployment Verification',
+      type: 'boundary',
+      color: '#3fb950',
+      labelAlign: 'left'
+    },
+    analyze: {
+      x: 360,
+      y: 645,
+      w: 255,
+      h: 82,
+      label: 'Stats Refresh',
+      sublabel: 'ANALYZE / UPDATE STATISTICS',
+      color: '#3fb950',
+      fontSize: 14,
+      inner: true
+    },
+    sanity: {
+      x: 655,
+      y: 645,
+      w: 270,
+      h: 82,
+      label: 'Sanity Checks',
+      sublabel: 'latency · error log scans',
+      color: '#3fb950',
+      fontSize: 14,
+      inner: true
+    },
+    restore: {
+      x: 965,
+      y: 645,
+      w: 250,
+      h: 82,
+      label: 'Restore Traffic',
+      sublabel: 'pools · writes · maint page',
+      color: '#3fb950',
+      fontSize: 14,
+      inner: true
+    },
+    live: {
+      x: 1250,
+      y: 645,
+      w: 220,
+      h: 82,
+      label: 'Production Live',
+      sublabel: 'writes open',
+      color: '#3fb950',
+      fontSize: 15,
+      inner: true
+    },
+
+    rollback_b: {
+      x: 330,
+      y: 840,
+      w: 1175,
+      h: 310,
+      label: '4. Emergency Rollback Execution',
+      type: 'boundary',
+      color: '#f85149',
+      labelAlign: 'left',
+      subBoundaries: [
+        { x: 350, y: 885, w: 1135, h: 240, color: '#f8514933' }
+      ]
+    },
+    triage: {
+      x: 360,
+      y: 920,
+      w: 255,
+      h: 82,
+      label: 'Triage Failure',
+      sublabel: 'choose recovery path',
+      color: '#f0883e',
+      fontSize: 14,
+      inner: true
+    },
+    down_mig: {
+      x: 655,
+      y: 920,
+      w: 270,
+      h: 82,
+      label: 'Down-Migration DDL',
+      sublabel: 'revert schema versions',
+      color: '#f85149',
+      fontSize: 14,
+      inner: true
+    },
+    snap_restore: {
+      x: 965,
+      y: 920,
+      w: 250,
+      h: 82,
+      label: 'Snapshot Restore',
+      sublabel: 'if data corruption',
+      color: '#f85149',
+      fontSize: 14,
+      inner: true
+    },
+    alert: {
+      x: 1250,
+      y: 920,
+      w: 220,
+      h: 82,
+      label: 'Re-route & Alert',
+      sublabel: 'PagerDuty / Slack',
+      color: '#d2a8ff',
+      fontSize: 14,
+      inner: true
+    }
+  },
+  tooltips: {
+    dba: {
+      title: 'DBA',
+      description: 'Reviews migrations, sets rollback points, and owns deploy / rollback decisions during application maintenance windows.',
+      details: [
+        ['Role', 'Change owner'],
+        ['Interface', 'AAP job templates']
+      ]
+    },
+    aap: {
+      title: 'Ansible Automation Platform',
+      description: 'Runs pre-deploy gates, blue-green migration playbooks, post-deploy validation, and single-command rollback.',
+      details: [
+        ['Platform', 'AAP'],
+        ['Targets', 'db_app / proxies / sandboxes']
+      ]
+    },
+    review: {
+      title: 'Review DDL/DML & Execution Plans',
+      description: 'DBA reviews migration scripts and query plans. Ansible runs CI/CD schema linters and dry-runs against sandboxes.',
+      details: [
+        ['DBA Duty', 'Review DDL/DML scripts & query execution plans'],
+        ['Ansible', 'CI/CD schema linters + sandbox dry-runs']
+      ]
+    },
+    snapshots: {
+      title: 'Establish DR Rollback Points',
+      description: 'Create restore points before structural change so a failed deploy can snap back.',
+      details: [
+        ['DBA Duty', 'Establish disaster recovery rollback points'],
+        ['Ansible', 'Storage snapshots + pre-deploy logical backups']
+      ]
+    },
+    timeouts: {
+      title: 'Prepare Engine for Structural Changes',
+      description: 'Temporarily raise statement and lock timeouts so DDL does not stall behind blocked queries.',
+      details: [
+        ['DBA Duty', 'Prepare engine for structural changes'],
+        ['Ansible', 'Adjust statement/lock timeouts']
+      ]
+    },
+    ready: {
+      title: 'Ready to Deploy',
+      description: 'Linters, dry-runs, backups, and timeout changes are in place. The change window can start.',
+      details: [
+        ['State', 'Pre-deploy gates passed'],
+        ['Next', 'Active deployment']
+      ]
+    },
+    drain: {
+      title: 'Traffic Management & Connection Control',
+      description: 'Drain application connections and freeze writes before schema work.',
+      details: [
+        ['DBA Duty', 'Traffic management & connection control'],
+        ['Ansible', 'Drain PgBouncer/ProxySQL + toggle read-only flags']
+      ]
+    },
+    proxy: {
+      title: 'PgBouncer / ProxySQL',
+      description: 'Connection proxies are drained for the deploy window and later restored with pool limits reset.',
+      details: [
+        ['Role', 'Connection control'],
+        ['Actions', 'Graceful drain · read-only · restore pools']
+      ]
+    },
+    migrate: {
+      title: 'Schema / Data Migration Execution',
+      description: 'Run blue-green schema tasks and seed scripts in order against the prepared engine.',
+      details: [
+        ['DBA Duty', 'Schema/Data migration execution'],
+        ['Ansible', 'Blue-green schema migration + sequential seed scripts']
+      ]
+    },
+    locks: {
+      title: 'Lock Contention Monitoring',
+      description: 'Watch for blockers during DDL/DML and kill orphan or blocking sessions automatically.',
+      details: [
+        ['DBA Duty', 'Lock contention monitoring'],
+        ['Ansible', 'Terminate orphan or blocking sessions']
+      ]
+    },
+    deployed: {
+      title: 'Migration Applied',
+      description: 'Schema and seed work finished. Node is not fully live until stats, sanity checks, and traffic restore complete.',
+      details: [
+        ['State', 'Awaiting verification'],
+        ['Next', 'ANALYZE · sanity · restore traffic']
+      ]
+    },
+    analyze: {
+      title: 'Engine Optimization & Stats Refresh',
+      description: 'Refresh planner statistics on tables touched by the migration so production plans stay valid.',
+      details: [
+        ['DBA Duty', 'Engine optimization & stats refresh'],
+        ['Ansible', 'Parallel ANALYZE / UPDATE STATISTICS on modified tables']
+      ]
+    },
+    sanity: {
+      title: 'Operational Sanity Checks',
+      description: 'Confirm the change is healthy before opening writes.',
+      details: [
+        ['DBA Duty', 'Operational sanity checks'],
+        ['Ansible', 'Latency checks + error log scans']
+      ]
+    },
+    restore: {
+      title: 'Restore Traffic Flow',
+      description: 'Put the application back in service: pool limits, writes, and maintenance page off.',
+      details: [
+        ['DBA Duty', 'Restore traffic flow'],
+        ['Ansible', 'Reset pool limits · open writes · remove maintenance pages']
+      ]
+    },
+    live: {
+      title: 'Production Live',
+      description: 'Writes are open, proxies are serving, and the maintenance window is closed.',
+      details: [
+        ['State', 'In service'],
+        ['Writes', 'Enabled']
+      ]
+    },
+    triage: {
+      title: 'Triage Deployment Failure',
+      description: 'Decide whether a down-migration is enough or whether storage must be restored from snapshot.',
+      details: [
+        ['DBA Duty', 'Triage failure & determine recovery path'],
+        ['Ansible', 'Single-command automated rollback playbooks']
+      ]
+    },
+    down_mig: {
+      title: 'Apply Down-Migration DDL',
+      description: 'Revert schema to the previous version when the failure is structural and data is intact.',
+      details: [
+        ['Action', 'Apply down-migration DDL or revert schema versions'],
+        ['When', 'Schema-only failure']
+      ]
+    },
+    snap_restore: {
+      title: 'Restore from Storage Snapshot',
+      description: 'Used when data corruption occurred and a logical down-migration is not enough.',
+      details: [
+        ['Action', 'Restore state from storage snapshot'],
+        ['When', 'Data corruption']
+      ]
+    },
+    alert: {
+      title: 'Re-route Traffic & Fire Alerts',
+      description: 'Send application traffic back to a known-good path and notify on-call.',
+      details: [
+        ['Action', 'Re-route application traffic'],
+        ['Alert', 'PagerDuty / Slack']
+      ]
+    }
+  },
+  legend: [
+    { label: 'Pre-deploy', color: '#58a6ff' },
+    { label: 'Deploy', color: '#f0883e' },
+    { label: 'Verify', color: '#3fb950' },
+    { label: 'Rollback', color: '#f85149' },
+    { label: 'Alerting', color: '#d2a8ff' }
+  ],
+  flows: {
+    overview: {
+      label: 'Overview — all workflows',
+      steps: [
+        {
+          text: 'DBA starts an application maintenance window through AAP',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Pre-deployment: lint, dry-run, snapshot, tune timeouts',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'review',
+          color: '#58a6ff',
+          num: 2,
+          fromTop: true,
+          toLeft: true,
+          glow: 'pre_b'
+        },
+        {
+          text: 'Active deploy: drain traffic, migrate, watch locks',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'drain',
+          color: '#f0883e',
+          num: 3,
+          fromRight: true,
+          toLeft: true,
+          glow: 'deploy_b'
+        },
+        {
+          text: 'Post-deploy: stats, sanity checks, restore traffic',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'analyze',
+          color: '#3fb950',
+          num: 4,
+          fromBottom: true,
+          toLeft: true,
+          glow: 'post_b'
+        },
+        {
+          text: 'On failure: single-command rollback + PagerDuty/Slack',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'triage',
+          color: '#f85149',
+          num: 5,
+          fromBottom: true,
+          toLeft: true,
+          glow: 'rollback_b'
+        }
+      ]
+    },
+    pre_deploy: {
+      label: '1. Pre-Deployment Preparation',
+      steps: [
+        {
+          text: 'DBA launches the pre-deploy job template',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Review DDL/DML: schema linters and sandbox dry-runs',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'review',
+          color: '#58a6ff',
+          num: 2,
+          fromTop: true,
+          toLeft: true,
+          glow: 'pre_b'
+        },
+        {
+          text: 'Establish DR rollback points: snapshots and logical backups',
+          mode: 'arrow',
+          from: 'review',
+          to: 'snapshots',
+          color: '#58a6ff',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Prepare engine: temporarily adjust statement/lock timeouts',
+          mode: 'arrow',
+          from: 'snapshots',
+          to: 'timeouts',
+          color: '#58a6ff',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Pre-deploy gates passed — ready to deploy',
+          mode: 'arrow',
+          from: 'timeouts',
+          to: 'ready',
+          color: '#3fb950',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Pre-deployment complete',
+          mode: 'lightup',
+          target: 'ready',
+          badge: 6
+        }
+      ]
+    },
+    deploy: {
+      label: '2. Active Deployment Execution',
+      steps: [
+        {
+          text: 'DBA starts the active deployment window',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Traffic management: drain connections and toggle read-only',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'drain',
+          color: '#f0883e',
+          num: 2,
+          fromRight: true,
+          toLeft: true,
+          glow: 'deploy_b'
+        },
+        {
+          text: 'Gracefully drain PgBouncer / ProxySQL',
+          mode: 'arrow',
+          from: 'drain',
+          to: 'proxy',
+          color: '#8b949e',
+          num: 3,
+          fromBottom: true,
+          toTop: true
+        },
+        {
+          text: 'Orchestrate blue-green schema migration and seed scripts',
+          mode: 'arrow',
+          from: 'drain',
+          to: 'migrate',
+          color: '#f0883e',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Monitor lock contention; terminate orphan or blocking sessions',
+          mode: 'arrow',
+          from: 'migrate',
+          to: 'locks',
+          color: '#f0883e',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Migration applied — hand off to post-deploy verification',
+          mode: 'arrow',
+          from: 'locks',
+          to: 'deployed',
+          color: '#79c0ff',
+          num: 6,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Active deployment complete',
+          mode: 'lightup',
+          target: 'deployed',
+          badge: 7
+        }
+      ]
+    },
+    post_deploy: {
+      label: '3. Post-Deployment Verification',
+      steps: [
+        {
+          text: 'DBA runs post-deploy validation',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Refresh stats: parallel ANALYZE / UPDATE STATISTICS',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'analyze',
+          color: '#3fb950',
+          num: 2,
+          fromBottom: true,
+          toLeft: true,
+          glow: 'post_b'
+        },
+        {
+          text: 'Operational sanity: latency checks and error log scans',
+          mode: 'arrow',
+          from: 'analyze',
+          to: 'sanity',
+          color: '#3fb950',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Restore traffic: pool limits, writes, remove maintenance page',
+          mode: 'arrow',
+          from: 'sanity',
+          to: 'restore',
+          color: '#3fb950',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Production writes are open',
+          mode: 'arrow',
+          from: 'restore',
+          to: 'live',
+          color: '#3fb950',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Verification complete — production live',
+          mode: 'lightup',
+          target: 'live',
+          badge: 6
+        }
+      ]
+    },
+    rollback: {
+      label: '4. Emergency Rollback',
+      steps: [
+        {
+          text: 'DBA triages a failed deployment',
+          mode: 'arrow',
+          from: 'dba',
+          to: 'aap',
+          color: '#ee0000',
+          num: 1,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Determine recovery path and launch rollback playbook',
+          mode: 'arrow',
+          from: 'aap',
+          to: 'triage',
+          color: '#f0883e',
+          num: 2,
+          fromBottom: true,
+          toLeft: true,
+          glow: 'rollback_b'
+        },
+        {
+          text: 'Apply down-migration DDL or revert schema versions',
+          mode: 'arrow',
+          from: 'triage',
+          to: 'down_mig',
+          color: '#f85149',
+          num: 3,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'If data corruption: restore from storage snapshot',
+          mode: 'arrow',
+          from: 'down_mig',
+          to: 'snap_restore',
+          color: '#f85149',
+          num: 4,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Re-route application traffic and alert PagerDuty / Slack',
+          mode: 'arrow',
+          from: 'snap_restore',
+          to: 'alert',
+          color: '#d2a8ff',
+          num: 5,
+          fromRight: true,
+          toLeft: true
+        },
+        {
+          text: 'Rollback complete',
+          mode: 'lightup',
+          target: 'alert',
+          badge: 6,
+          errColor: '#f85149'
+        }
+      ]
+    }
+  },
+  inspector: {
+    initialState: {
+      phase: 'request',
+      headers: [
+        { value: 'PLAY [dba_app_maintenance]', style: 'keep', id: 'h-play' },
+        { value: 'hosts: db_app', style: 'keep', id: 'h-hosts' }
+      ],
+      body: [
+        { value: 'gather_facts: true', style: 'keep', id: 'b-facts' }
+      ],
+      cycleState: []
+    },
+    mutations: {
+      overview: [
+        {
+          step: 1,
+          label: 'Job template selected',
+          phase: 'request',
+          actions: [
+            { id: 'h-play', style: 'highlight' }
+          ]
+        },
+        {
+          step: 2,
+          label: 'Pre-deploy family',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'import_playbook: pre_deploy.yml', id: 'b-pre', style: 'add' }
+          ]
+        },
+        {
+          step: 3,
+          label: 'Deploy family',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'import_playbook: deploy.yml', id: 'b-dep', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Verify family',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'import_playbook: post_deploy.yml', id: 'b-post', style: 'add' }
+          ]
+        },
+        {
+          step: 5,
+          label: 'Rollback family',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'import_playbook: rollback.yml', id: 'b-rb', style: 'add' }
+          ]
+        }
+      ],
+      pre_deploy: [
+        {
+          step: 2,
+          label: 'Lint & dry-run',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [pre_deploy]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: sandbox:db_app', style: 'highlight', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'CI/CD schema linters', style: 'add', id: 'b-lint' },
+              { value: 'dry-run against sandboxes', style: 'add', id: 'b-dry' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Rollback points',
+          phase: 'request',
+          actions: [
+            { action: 'replaceBody', body: [
+              { value: 'automated storage snapshots', style: 'add', id: 'b-snap' },
+              { value: 'pre-deploy logical backups', style: 'add', id: 'b-bak' }
+            ]}
+          ]
+        },
+        {
+          step: 4,
+          label: 'Engine prep',
+          phase: 'request',
+          actions: [
+            { action: 'replaceBody', body: [
+              { value: 'adjust statement_timeout', style: 'add', id: 'b-st' },
+              { value: 'adjust lock_timeout', style: 'add', id: 'b-lt' }
+            ]}
+          ]
+        },
+        {
+          step: 6,
+          label: 'Ready',
+          phase: 'response',
+          actions: [
+            { action: 'replaceBody', body: [
+              { value: 'ok: pre-deploy gates passed', style: 'add', id: 'b-ok' }
+            ]}
+          ]
+        }
+      ],
+      deploy: [
+        {
+          step: 2,
+          label: 'Traffic control',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [deploy]', style: 'keep', id: 'h-play' },
+              { value: 'serial: 1', style: 'highlight', id: 'h-serial' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'drain PgBouncer / ProxySQL', style: 'add', id: 'b-drain' },
+              { value: 'toggle read-only flags', style: 'add', id: 'b-ro' }
+            ]}
+          ]
+        },
+        {
+          step: 4,
+          label: 'Migration',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'blue-green schema migration tasks', id: 'b-bg', style: 'add' },
+            { action: 'add', target: 'body', value: 'seed scripts (sequential)', id: 'b-seed', style: 'add' }
+          ]
+        },
+        {
+          step: 5,
+          label: 'Locks',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'terminate orphan / blocking sessions', id: 'b-kill', style: 'highlight' }
+          ]
+        },
+        {
+          step: 7,
+          label: 'Applied',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'ok: migration applied', id: 'b-ok', style: 'add' }
+          ]
+        }
+      ],
+      post_deploy: [
+        {
+          step: 2,
+          label: 'Stats',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [post_deploy]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_app', style: 'keep', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'ANALYZE / UPDATE STATISTICS (parallel)', style: 'add', id: 'b-an' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Sanity',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'latency checks', id: 'b-lat', style: 'add' },
+            { action: 'add', target: 'body', value: 'error log scans', id: 'b-log', style: 'add' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Restore traffic',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'reset pool limits', id: 'b-pool', style: 'add' },
+            { action: 'add', target: 'body', value: 'open write access', id: 'b-w', style: 'add' },
+            { action: 'add', target: 'body', value: 'remove maintenance pages', id: 'b-mp', style: 'add' }
+          ]
+        },
+        {
+          step: 6,
+          label: 'Live',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 'ok: production live', id: 'b-ok', style: 'add' }
+          ]
+        }
+      ],
+      rollback: [
+        {
+          step: 2,
+          label: 'Triage',
+          phase: 'request',
+          actions: [
+            { action: 'replaceHeaders', headers: [
+              { value: 'PLAY [rollback]', style: 'keep', id: 'h-play' },
+              { value: 'hosts: db_app', style: 'highlight', id: 'h-hosts' }
+            ]},
+            { action: 'replaceBody', body: [
+              { value: 'single-command rollback playbook', style: 'add', id: 'b-rb' }
+            ]}
+          ]
+        },
+        {
+          step: 3,
+          label: 'Down-migration',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'apply down-migration DDL / revert schema', id: 'b-ddl', style: 'err' }
+          ]
+        },
+        {
+          step: 4,
+          label: 'Snapshot restore',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'restore from storage snapshot (if corruption)', id: 'b-snap', style: 'err' }
+          ]
+        },
+        {
+          step: 6,
+          label: 'Alerted',
+          phase: 'response',
+          actions: [
+            { action: 'add', target: 'body', value: 're-route traffic', id: 'b-rt', style: 'add' },
+            { action: 'add', target: 'body', value: 'PagerDuty / Slack incident alert', id: 'b-pd', style: 'add' }
+          ]
+        }
+      ]
+    }
+  }
+};
+
+const viz = new FlowStory(document.getElementById('fs-canvas'), {
+  stepsContainer: document.getElementById('fs-steps-container'),
+  inspectorTitle: document.getElementById('fs-inspector-title'),
+  inspectorContent: document.getElementById('fs-inspector-content'),
+  overlay: document.getElementById('fs-overlay'),
+  overlayCard: document.getElementById('fs-overlay-card'),
+  overlayTitle: document.getElementById('fs-overlay-title'),
+  overlayDesc: document.getElementById('fs-overlay-desc'),
+  overlayDetails: document.getElementById('fs-overlay-details'),
+  overlayAccent: document.getElementById('fs-overlay-accent'),
+  overlayClose: document.getElementById('fs-overlay-close'),
+  overlayResume: document.getElementById('fs-overlay-resume'),
+  highlightBox: document.getElementById('fs-highlight-box'),
+  brand: document.getElementById('fs-brand'),
+  title: document.getElementById('fs-title'),
+  legend: document.getElementById('fs-legend'),
+  flowSelect: document.getElementById('fs-flow-select'),
+  playBtn: document.getElementById('fs-play'),
+  speedBtn: document.getElementById('fs-speed'),
+  loopBtn: document.getElementById('fs-loop'),
+  resetBtn: document.getElementById('fs-reset'),
+  themeBtn: document.getElementById('fs-theme'),
+});
+
+window.__flowstory = viz;
+
+try {
+  await viz.load(diagram);
+
+  viz.state.loopMode = true;
+  const loopBtn = document.getElementById('fs-loop');
+  if (loopBtn) {
+    loopBtn.textContent = '⟳ Loop ON';
+    loopBtn.style.borderColor = '#3fb950';
+    loopBtn.style.color = '#3fb950';
+  }
+  viz.play();
+} catch (e) {
+  console.error('FlowStory load error:', e);
+  document.body.innerHTML = `<div style="padding:40px;color:#f85149;font-family:monospace"><h2>FlowStory Load Error</h2><pre>${e.message}\n\n${e.stack || ''}</pre></div>`;
+}
+</script>
+</body>
+</html>
