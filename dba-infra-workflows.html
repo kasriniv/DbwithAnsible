@@ -120,23 +120,12 @@ const diagram = {
     engine: {
       x: 955,
       y: 95,
-      w: 250,
+      w: 320,
       h: 78,
-      label: 'Engine Installation',
-      sublabel: 'binaries · configs · init',
+      label: 'Engine Installation and Bootstrap',
+      sublabel: 'binaries · configs · cluster init',
       color: '#58a6ff',
-      fontSize: 14,
-      inner: true
-    },
-    cluster_ready: {
-      x: 1245,
-      y: 95,
-      w: 225,
-      h: 78,
-      label: 'Cluster Ready',
-      sublabel: 'initialized',
-      color: '#3fb950',
-      fontSize: 15,
+      fontSize: 13,
       inner: true
     },
 
@@ -166,10 +155,10 @@ const diagram = {
       y: 370,
       w: 250,
       h: 78,
-      label: 'Patch & Reboot',
+      label: 'Host Patch and Reboot',
       sublabel: 'kernel · firmware · dnf/apt',
       color: '#f0883e',
-      fontSize: 14,
+      fontSize: 13,
       inner: true
     },
     catchup: {
@@ -343,19 +332,11 @@ const diagram = {
       ]
     },
     engine: {
-      title: 'Engine Installation',
-      description: 'Deploy database binaries, write baseline configs from Jinja2 templates, and initialize the cluster.',
+      title: 'Engine Installation and Bootstrap',
+      description: 'Deploy database binaries, write baseline configs from Jinja2 templates, bootstrap the engine, and initialize the cluster.',
       details: [
-        ['Tasks', 'Deploy binaries · baseline configs · initialize cluster'],
+        ['Tasks', 'Deploy binaries · baseline configs · bootstrap · initialize cluster'],
         ['Ansible', 'Engine installation roles + Jinja2 parameter templates']
-      ]
-    },
-    cluster_ready: {
-      title: 'Cluster Ready',
-      description: 'Bootstrap complete: engine is installed, configs are written, and the cluster is initialized.',
-      details: [
-        ['State', 'Initialized'],
-        ['Next', 'Accept traffic / add replicas']
       ]
     },
     drain: {
@@ -383,7 +364,7 @@ const diagram = {
       ]
     },
     patch: {
-      title: 'Patching & Reboot Execution',
+      title: 'Host Patch and Reboot',
       description: 'Apply OS kernel updates and firmware/hypervisor patches, then perform a safe reboot.',
       details: [
         ['Tasks', 'Kernel updates · firmware/hypervisor patches · safe reboot'],
@@ -566,7 +547,7 @@ const diagram = {
           toLeft: true
         },
         {
-          text: 'Deploy DB binaries, write baseline configs, initialize cluster',
+          text: 'Deploy DB binaries, write baseline configs, bootstrap and initialize cluster',
           mode: 'arrow',
           from: 'storage',
           to: 'engine',
@@ -576,20 +557,10 @@ const diagram = {
           toLeft: true
         },
         {
-          text: 'Cluster initialized — engine is ready for traffic',
-          mode: 'arrow',
-          from: 'engine',
-          to: 'cluster_ready',
-          color: '#3fb950',
-          num: 5,
-          fromRight: true,
-          toLeft: true
-        },
-        {
           text: 'Provisioning complete',
           mode: 'lightup',
-          target: 'cluster_ready',
-          badge: 6
+          target: 'engine',
+          badge: 5
         }
       ]
     },
@@ -638,7 +609,7 @@ const diagram = {
           toLeft: true
         },
         {
-          text: 'Apply OS kernel and firmware patches, then safe reboot',
+          text: 'Host patch and reboot: OS kernel and firmware, then safe reboot',
           mode: 'arrow',
           from: 'proxy',
           to: 'patch',
@@ -877,23 +848,23 @@ const diagram = {
         },
         {
           step: 4,
-          label: 'Engine Installation',
+          label: 'Engine Installation and Bootstrap',
           phase: 'request',
           actions: [
             { action: 'replaceBody', body: [
-              { value: 'engine installation roles', style: 'add', id: 'b-eng' },
+              { value: 'engine installation and bootstrap roles', style: 'add', id: 'b-eng' },
               { value: 'Jinja2 parameter templates', style: 'add', id: 'b-jinja' },
               { value: 'initialize cluster', style: 'highlight', id: 'b-init' }
             ]}
           ]
         },
         {
-          step: 6,
-          label: 'Cluster Ready',
+          step: 5,
+          label: 'Done',
           phase: 'response',
           actions: [
             { action: 'replaceBody', body: [
-              { value: 'ok: cluster initialized', style: 'add', id: 'b-ok' }
+              { value: 'ok: engine installed and bootstrapped', style: 'add', id: 'b-ok' }
             ]}
           ]
         }
@@ -931,7 +902,7 @@ const diagram = {
         },
         {
           step: 5,
-          label: 'Patch & Reboot',
+          label: 'Host Patch and Reboot',
           phase: 'request',
           actions: [
             { action: 'add', target: 'body', value: 'dnf/apt kernel + firmware patches', id: 'b-pkg', style: 'add' },
