@@ -117,28 +117,6 @@ const diagram = {
       fontSize: 14,
       inner: true
     },
-    alert_resp: {
-      x: 955,
-      y: 85,
-      w: 250,
-      h: 82,
-      label: 'Alert Response',
-      sublabel: 'Event-Driven Ansible',
-      color: '#f0883e',
-      fontSize: 14,
-      inner: true
-    },
-    eda: {
-      x: 1240,
-      y: 85,
-      w: 230,
-      h: 82,
-      label: 'AAP EDA',
-      sublabel: 'webhook → rulebook',
-      color: '#d2a8ff',
-      fontSize: 15,
-      inner: true
-    },
 
     weekly_b: {
       x: 330,
@@ -172,26 +150,26 @@ const diagram = {
       fontSize: 14,
       inner: true
     },
-    storage: {
+    data_refresh: {
       x: 955,
       y: 355,
       w: 250,
       h: 82,
-      label: 'Storage Cleanup',
-      sublabel: 'file / mount rotations',
+      label: 'Non-Prod Data Refresh',
+      sublabel: 'subset copy / anonymize',
       color: '#79c0ff',
-      fontSize: 14,
+      fontSize: 13,
       inner: true
     },
-    weekly_done: {
+    config_drift: {
       x: 1240,
       y: 355,
       w: 230,
       h: 82,
-      label: 'Weekly Complete',
-      sublabel: 'non-prod maintained',
-      color: '#3fb950',
-      fontSize: 14,
+      label: 'Config-Drift Check',
+      sublabel: 'facts vs desired state',
+      color: '#79c0ff',
+      fontSize: 13,
       inner: true
     },
 
@@ -205,48 +183,37 @@ const diagram = {
       color: '#f0883e',
       labelAlign: 'left'
     },
-    prod_patch: {
+    minor_patch: {
       x: 360,
       y: 620,
       w: 255,
       h: 82,
-      label: 'Prod Rolling Patch',
-      sublabel: 'failover + orchestration',
+      label: 'Minor Patching',
+      sublabel: 'OS/DB minor updates',
       color: '#f0883e',
       fontSize: 14,
       inner: true
     },
-    restore_drill: {
+    access_audit: {
       x: 650,
       y: 620,
       w: 270,
       h: 82,
-      label: 'Backup Restore Drill',
-      sublabel: 'ephemeral VM restore',
-      color: '#f0883e',
-      fontSize: 14,
-      inner: true
-    },
-    iam_audit: {
-      x: 955,
-      y: 620,
-      w: 250,
-      h: 82,
-      label: 'User Access Audit',
+      label: 'Access Audits',
       sublabel: 'facts + IAM diff report',
       color: '#f0883e',
       fontSize: 14,
       inner: true
     },
-    monthly_done: {
-      x: 1240,
+    cred_rotation: {
+      x: 955,
       y: 620,
-      w: 230,
+      w: 250,
       h: 82,
-      label: 'Monthly Complete',
-      sublabel: 'prod + audit signed',
-      color: '#3fb950',
-      fontSize: 14,
+      label: 'Credential Rotation',
+      sublabel: 'secrets / password refresh',
+      color: '#f0883e',
+      fontSize: 13,
       inner: true
     },
 
@@ -292,17 +259,6 @@ const diagram = {
       color: '#8b949e',
       fontSize: 14,
       inner: true
-    },
-    quarterly_done: {
-      x: 1240,
-      y: 900,
-      w: 230,
-      h: 82,
-      label: 'Quarterly Complete',
-      sublabel: 'upgrade · DR · harden',
-      color: '#3fb950',
-      fontSize: 14,
-      inner: true
     }
   },
   tooltips: {
@@ -311,12 +267,12 @@ const diagram = {
       description: 'Owns the native operations cadence: daily checks, weekly hygiene, monthly prod change, and quarterly drills.',
       details: [
         ['Role', 'Operations owner'],
-        ['Interface', 'AAP schedules, job templates, EDA']
+        ['Interface', 'AAP schedules and job templates']
       ]
     },
     aap: {
       title: 'Ansible Automation Platform',
-      description: 'Schedules roles, runs rolling playbooks, spins ephemeral restore labs, and consumes EDA webhooks for alert response.',
+      description: 'Schedules roles, runs rolling playbooks, and executes cadence job templates.',
       details: [
         ['Platform', 'AAP'],
         ['Cadence', 'Daily · Weekly · Monthly · Quarterly']
@@ -338,22 +294,6 @@ const diagram = {
         ['Ansible', 'Storage modules & log parsing']
       ]
     },
-    alert_resp: {
-      title: 'Alert Response',
-      description: 'Incoming health/backup alerts are handled automatically instead of waiting for a ticket queue.',
-      details: [
-        ['Cadence', 'Daily'],
-        ['Ansible', 'Event-Driven Ansible (EDA)']
-      ]
-    },
-    eda: {
-      title: 'AAP Event-Driven Ansible',
-      description: 'Webhook events from monitors trigger rulebooks that run response playbooks without a human click.',
-      details: [
-        ['Pattern', 'Webhook → rulebook → job'],
-        ['Source', 'Health & backup alerts']
-      ]
-    },
     np_patch: {
       title: 'Non-Prod OS/DB Patching',
       description: 'Roll OS and database patches through non-production first, using rolling update playbooks.',
@@ -370,52 +310,44 @@ const diagram = {
         ['Ansible', 'SQL template runners']
       ]
     },
-    storage: {
-      title: 'Storage Cleanup & Rotations',
-      description: 'Rotate logs, expire aged files, and keep mounts within capacity.',
+    data_refresh: {
+      title: 'Non-Prod Data Refresh',
+      description: 'Refresh non-production databases from a sanitized production subset so test data stays current.',
       details: [
         ['Cadence', 'Weekly'],
-        ['Ansible', 'File / mount modules']
+        ['Ansible', 'Data refresh playbooks (subset copy / anonymize)']
       ]
     },
-    weekly_done: {
-      title: 'Weekly Complete',
-      description: 'Non-prod is patched, stats are current, and storage rotations finished.',
+    config_drift: {
+      title: 'Config-Drift Check',
+      description: 'Compare live engine and host facts against the desired baseline and report configuration drift.',
       details: [
-        ['State', 'Weekly hygiene done'],
-        ['Next', 'Monthly prod window']
+        ['Cadence', 'Weekly'],
+        ['Ansible', 'Fact gathering vs desired-state diff']
       ]
     },
-    prod_patch: {
-      title: 'Production Rolling Patching',
-      description: 'Cluster-aware failover, then patch one node at a time so production stays up.',
-      details: [
-        ['Cadence', 'Monthly'],
-        ['Ansible', 'Cluster-aware failover & patch orchestration']
-      ]
-    },
-    restore_drill: {
-      title: 'Backup Restore Drills',
-      description: 'Stand up a throwaway VM, restore a backup, prove recoverability, then destroy the lab.',
+    minor_patch: {
+      title: 'Minor Patching',
+      description: 'Apply OS and database minor updates on a monthly cadence without a major-version change.',
       details: [
         ['Cadence', 'Monthly'],
-        ['Ansible', 'Ephemeral VM spinup, restore, & destruction']
+        ['Ansible', 'Minor patch playbooks']
       ]
     },
-    iam_audit: {
-      title: 'User Access Auditing',
-      description: 'Gather engine/IAM facts and diff against expected access to catch drift.',
+    access_audit: {
+      title: 'Access Audits',
+      description: 'Gather engine/IAM facts and diff against expected access to catch privilege drift.',
       details: [
         ['Cadence', 'Monthly'],
         ['Ansible', 'Fact gathering & IAM diff reports']
       ]
     },
-    monthly_done: {
-      title: 'Monthly Complete',
-      description: 'Production is patched, restore was proven, and access drift is reported.',
+    cred_rotation: {
+      title: 'Credential Rotation',
+      description: 'Rotate database passwords, service accounts, and stored secrets on a controlled monthly window.',
       details: [
-        ['State', 'Monthly ops signed off'],
-        ['Next', 'Quarterly drills']
+        ['Cadence', 'Monthly'],
+        ['Ansible', 'Credential / vault rotation playbooks']
       ]
     },
     upgrade: {
@@ -441,30 +373,20 @@ const diagram = {
         ['Cadence', 'Quarterly'],
         ['Ansible', 'CIS/STIG security baseline roles']
       ]
-    },
-    quarterly_done: {
-      title: 'Quarterly Complete',
-      description: 'Major upgrade path exercised, DR cutover proven, and hardening baselines applied.',
-      details: [
-        ['State', 'Quarterly program complete'],
-        ['Evidence', 'Upgrade · DR · CIS/STIG']
-      ]
     }
   },
   legend: [
     { label: 'Daily', color: '#58a6ff' },
     { label: 'Weekly', color: '#79c0ff' },
     { label: 'Monthly', color: '#f0883e' },
-    { label: 'Quarterly', color: '#d2a8ff' },
-    { label: 'EDA / Alerts', color: '#d2a8ff' },
-    { label: 'Complete', color: '#3fb950' }
+    { label: 'Quarterly', color: '#d2a8ff' }
   ],
   flows: {
     overview: {
       label: 'Overview — all cadences',
       steps: [
         {
-          text: 'DBA operates native workflows through AAP schedules and EDA',
+          text: 'DBA operates native workflows through AAP schedules',
           mode: 'arrow',
           from: 'dba',
           to: 'aap',
@@ -474,7 +396,7 @@ const diagram = {
           toLeft: true
         },
         {
-          text: 'Daily: health, backup verify, EDA alert response',
+          text: 'Daily: health and backup verification',
           mode: 'arrow',
           from: 'aap',
           to: 'health',
@@ -485,7 +407,7 @@ const diagram = {
           glow: 'daily_b'
         },
         {
-          text: 'Weekly: non-prod patch, stats, storage rotation',
+          text: 'Weekly: non-prod patch, stats, data refresh, config-drift',
           mode: 'arrow',
           from: 'aap',
           to: 'np_patch',
@@ -496,10 +418,10 @@ const diagram = {
           glow: 'weekly_b'
         },
         {
-          text: 'Monthly: prod rolling patch, restore drills, IAM audit',
+          text: 'Monthly: minor patching, access audits, credential rotation',
           mode: 'arrow',
           from: 'aap',
-          to: 'prod_patch',
+          to: 'minor_patch',
           color: '#f0883e',
           num: 4,
           fromRight: true,
@@ -555,30 +477,10 @@ const diagram = {
           toLeft: true
         },
         {
-          text: 'Alert response is handed to Event-Driven Ansible',
-          mode: 'arrow',
-          from: 'backup_verify',
-          to: 'alert_resp',
-          color: '#f0883e',
-          num: 4,
-          fromRight: true,
-          toLeft: true
-        },
-        {
-          text: 'EDA consumes webhooks and runs the response rulebook',
-          mode: 'arrow',
-          from: 'alert_resp',
-          to: 'eda',
-          color: '#d2a8ff',
-          num: 5,
-          fromRight: true,
-          toLeft: true
-        },
-        {
           text: 'Daily cadence complete',
           mode: 'lightup',
-          target: 'eda',
-          badge: 6
+          target: 'backup_verify',
+          badge: 4
         }
       ]
     },
@@ -617,29 +519,29 @@ const diagram = {
           toLeft: true
         },
         {
-          text: 'Storage cleanup and rotations with file/mount modules',
+          text: 'Non-prod data refresh: subset copy and anonymize',
           mode: 'arrow',
           from: 'idx_stats',
-          to: 'storage',
+          to: 'data_refresh',
           color: '#79c0ff',
           num: 4,
           fromRight: true,
           toLeft: true
         },
         {
-          text: 'Weekly maintenance complete',
+          text: 'Config-drift check: facts vs desired state',
           mode: 'arrow',
-          from: 'storage',
-          to: 'weekly_done',
-          color: '#3fb950',
+          from: 'data_refresh',
+          to: 'config_drift',
+          color: '#79c0ff',
           num: 5,
           fromRight: true,
           toLeft: true
         },
         {
-          text: 'Non-prod maintained',
+          text: 'Weekly cadence complete',
           mode: 'lightup',
-          target: 'weekly_done',
+          target: 'config_drift',
           badge: 6
         }
       ]
@@ -658,10 +560,10 @@ const diagram = {
           toLeft: true
         },
         {
-          text: 'Production rolling patch: cluster-aware failover and orchestration',
+          text: 'Minor patching: OS/DB minor updates',
           mode: 'arrow',
           from: 'aap',
-          to: 'prod_patch',
+          to: 'minor_patch',
           color: '#f0883e',
           num: 2,
           fromRight: true,
@@ -670,20 +572,20 @@ const diagram = {
           glow: 'monthly_b'
         },
         {
-          text: 'Backup restore drill: spin up VM, restore, destroy',
+          text: 'Access audits: fact gathering and IAM diff reports',
           mode: 'arrow',
-          from: 'prod_patch',
-          to: 'restore_drill',
+          from: 'minor_patch',
+          to: 'access_audit',
           color: '#f0883e',
           num: 3,
           fromRight: true,
           toLeft: true
         },
         {
-          text: 'User access audit: fact gathering and IAM diff reports',
+          text: 'Credential rotation: secrets and password refresh',
           mode: 'arrow',
-          from: 'restore_drill',
-          to: 'iam_audit',
+          from: 'access_audit',
+          to: 'cred_rotation',
           color: '#f0883e',
           num: 4,
           fromRight: true,
@@ -691,19 +593,9 @@ const diagram = {
         },
         {
           text: 'Monthly cadence complete',
-          mode: 'arrow',
-          from: 'iam_audit',
-          to: 'monthly_done',
-          color: '#3fb950',
-          num: 5,
-          fromRight: true,
-          toLeft: true
-        },
-        {
-          text: 'Prod patch + restore + audit signed off',
           mode: 'lightup',
-          target: 'monthly_done',
-          badge: 6
+          target: 'cred_rotation',
+          badge: 5
         }
       ]
     },
@@ -752,20 +644,10 @@ const diagram = {
           toLeft: true
         },
         {
-          text: 'Quarterly program complete',
-          mode: 'arrow',
-          from: 'cis',
-          to: 'quarterly_done',
-          color: '#3fb950',
-          num: 5,
-          fromRight: true,
-          toLeft: true
-        },
-        {
-          text: 'Upgrade · DR · hardening signed off',
+          text: 'Quarterly cadence complete',
           mode: 'lightup',
-          target: 'quarterly_done',
-          badge: 6
+          target: 'cis',
+          badge: 5
         }
       ]
     }
@@ -813,7 +695,7 @@ const diagram = {
           label: 'Monthly',
           phase: 'request',
           actions: [
-            { action: 'add', target: 'body', value: 'schedule: monthly  prod_patch.yml + restore_drill.yml', id: 'b-m', style: 'add' }
+            { action: 'add', target: 'body', value: 'schedule: monthly  minor_patch.yml + access_audit.yml + cred_rotation.yml', id: 'b-m', style: 'add' }
           ]
         },
         {
@@ -853,13 +735,12 @@ const diagram = {
           ]
         },
         {
-          step: 5,
-          label: 'EDA',
+          step: 4,
+          label: 'Done',
           phase: 'response',
           actions: [
             { action: 'replaceBody', body: [
-              { value: 'Event-Driven Ansible rulebook', style: 'add', id: 'b-eda' },
-              { value: 'ok: webhook consumed', style: 'add', id: 'b-ok' }
+              { value: 'ok: daily health + backup verify complete', style: 'add', id: 'b-ok' }
             ]}
           ]
         }
@@ -889,10 +770,18 @@ const diagram = {
         },
         {
           step: 4,
-          label: 'Storage',
+          label: 'Data refresh',
           phase: 'request',
           actions: [
-            { action: 'add', target: 'body', value: 'file/mount modules: cleanup & rotation', id: 'b-fm', style: 'add' }
+            { action: 'add', target: 'body', value: 'non-prod data refresh: subset copy / anonymize', id: 'b-drf', style: 'add' }
+          ]
+        },
+        {
+          step: 5,
+          label: 'Config-drift',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'config-drift check: facts vs desired state', id: 'b-drift', style: 'add' }
           ]
         },
         {
@@ -900,47 +789,47 @@ const diagram = {
           label: 'Done',
           phase: 'response',
           actions: [
-            { action: 'add', target: 'body', value: 'ok: weekly hygiene complete', id: 'b-ok', style: 'add' }
+            { action: 'add', target: 'body', value: 'ok: weekly cadence complete', id: 'b-ok', style: 'add' }
           ]
         }
       ],
       monthly: [
         {
           step: 2,
-          label: 'Prod patch',
+          label: 'Minor patch',
           phase: 'request',
           actions: [
             { action: 'replaceHeaders', headers: [
               { value: 'PLAY [monthly]', style: 'keep', id: 'h-play' },
-              { value: 'hosts: db_prod  serial: 1', style: 'highlight', id: 'h-hosts' }
+              { value: 'hosts: db_prod', style: 'highlight', id: 'h-hosts' }
             ]},
             { action: 'replaceBody', body: [
-              { value: 'cluster-aware failover & patch orchestration', style: 'add', id: 'b-fo' }
+              { value: 'minor patch playbooks (OS/DB)', style: 'add', id: 'b-mp' }
             ]}
           ]
         },
         {
           step: 3,
-          label: 'Restore drill',
-          phase: 'request',
-          actions: [
-            { action: 'add', target: 'body', value: 'ephemeral VM spinup → restore → destroy', id: 'b-vm', style: 'add' }
-          ]
-        },
-        {
-          step: 4,
-          label: 'IAM audit',
+          label: 'Access audits',
           phase: 'request',
           actions: [
             { action: 'add', target: 'body', value: 'fact gathering & IAM diff reports', id: 'b-iam', style: 'add' }
           ]
         },
         {
-          step: 6,
+          step: 4,
+          label: 'Credential rotation',
+          phase: 'request',
+          actions: [
+            { action: 'add', target: 'body', value: 'credential / vault rotation playbooks', id: 'b-cred', style: 'add' }
+          ]
+        },
+        {
+          step: 5,
           label: 'Done',
           phase: 'response',
           actions: [
-            { action: 'add', target: 'body', value: 'ok: monthly window complete', id: 'b-ok', style: 'add' }
+            { action: 'add', target: 'body', value: 'ok: monthly cadence complete', id: 'b-ok', style: 'add' }
           ]
         }
       ],
@@ -976,11 +865,11 @@ const diagram = {
           ]
         },
         {
-          step: 6,
+          step: 5,
           label: 'Done',
           phase: 'response',
           actions: [
-            { action: 'add', target: 'body', value: 'ok: quarterly program complete', id: 'b-ok', style: 'add' }
+            { action: 'add', target: 'body', value: 'ok: quarterly cadence complete', id: 'b-ok', style: 'add' }
           ]
         }
       ]
