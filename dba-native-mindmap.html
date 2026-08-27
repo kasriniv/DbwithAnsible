@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DBA Native Mindmap</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --line: #30363d;
+    --surface: #161b22;
+    --root: #58a6ff;
+    --daily: #58a6ff;
+    --weekly: #79c0ff;
+    --monthly: #f0883e;
+    --quarterly: #d2a8ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    padding: 24px 28px 8px;
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  .sub {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  button.tool {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.tool:hover { border-color: var(--root); color: var(--root); }
+  .wrap {
+    overflow: auto;
+    padding: 12px 28px 40px;
+  }
+  .mindmap {
+    display: flex;
+    align-items: center;
+    min-width: max-content;
+    gap: 0;
+  }
+  .root-node, .branch-node, .leaf {
+    width: 220px;
+    min-height: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.25;
+  }
+  .root-node {
+    background: var(--root);
+    border-color: var(--root);
+    color: #0d1117;
+    font-weight: 600;
+  }
+  .root-node .hint {
+    font-size: 11px;
+    font-weight: 400;
+    opacity: 0.85;
+  }
+  .title { font-size: 13px; font-weight: 600; }
+  .hint { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .branch-node {
+    cursor: pointer;
+    font-weight: 600;
+    width: 160px;
+  }
+  .branch-node[data-id="daily"] { border-color: var(--daily); color: var(--daily); }
+  .branch-node[data-id="weekly"] { border-color: var(--weekly); color: var(--weekly); }
+  .branch-node[data-id="monthly"] { border-color: var(--monthly); color: var(--monthly); }
+  .branch-node[data-id="quarterly"] { border-color: var(--quarterly); color: var(--quarterly); }
+  .leaf .title { font-weight: 500; }
+  .connector {
+    width: 36px;
+    height: 2px;
+    background: var(--line);
+    flex-shrink: 0;
+  }
+  .branches {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    position: relative;
+    padding-left: 18px;
+  }
+  .branches::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 28px;
+    bottom: 28px;
+    width: 2px;
+    background: var(--line);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+  .row::before {
+    content: "";
+    position: absolute;
+    left: -18px;
+    width: 18px;
+    height: 2px;
+    background: var(--line);
+    top: 50%;
+  }
+  .leaves {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    padding-left: 18px;
+  }
+  .leaves::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 28px;
+    bottom: 28px;
+    width: 2px;
+    background: var(--line);
+  }
+  .leaf-row {
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+  .leaf-row::before {
+    content: "";
+    position: absolute;
+    left: -18px;
+    width: 18px;
+    height: 2px;
+    background: var(--line);
+    top: 50%;
+  }
+  .row.collapsed .leaves,
+  .row.collapsed .leaves-connector {
+    display: none;
+  }
+  .leaves-connector { width: 36px; height: 2px; background: var(--line); flex-shrink: 0; }
+  .source {
+    padding: 0 28px 28px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>DBA Native Mindmap</h1>
+    <p class="sub">Cadence mindmap from dba-native-workflows. Click Daily, Weekly, Monthly, or Quarterly to collapse or expand.</p>
+    <div class="toolbar">
+      <button class="tool" id="expand-all" type="button">Expand all</button>
+      <button class="tool" id="collapse-all" type="button">Collapse all</button>
+    </div>
+  </header>
+  <div class="wrap">
+    <div class="mindmap" id="mindmap"></div>
+  </div>
+  <p class="source">Source: dba-native-workflows.html</p>
+
+<script>
+const BRANCHES = [
+  {
+    id: "daily",
+    label: "Daily",
+    children: [
+      { label: "Healthcheck" },
+      { label: "Backup Verification" }
+    ]
+  },
+  {
+    id: "weekly",
+    label: "Weekly",
+    children: [
+      { label: "Non-Prod Patching" },
+      { label: "Indexing/Stats" },
+      { label: "Non-Prod Data Refresh" },
+      { label: "Config-Drift Check" }
+    ]
+  },
+  {
+    id: "monthly",
+    label: "Monthly",
+    children: [
+      { label: "Minor Patching" },
+      { label: "Audit Reporting" },
+      { label: "Credential Rotation" }
+    ]
+  },
+  {
+    id: "quarterly",
+    label: "Quarterly",
+    children: [
+      { label: "Major Version Upgrade" },
+      { label: "DR Failover Drill" },
+      { label: "Compliance Hardening" }
+    ]
+  }
+];
+
+const open = { daily: true, weekly: true, monthly: true, quarterly: true };
+
+function render() {
+  const root = document.getElementById("mindmap");
+  const rows = BRANCHES.map((branch) => {
+    const expanded = open[branch.id];
+    const leaves = branch.children.map((child) => `
+      <div class="leaf-row">
+        <div class="leaf">
+          <div class="title">${child.label}</div>
+        </div>
+      </div>
+    `).join("");
+    return `
+      <div class="row ${expanded ? "" : "collapsed"}" data-branch="${branch.id}">
+        <button class="branch-node" type="button" data-id="${branch.id}" aria-expanded="${expanded}">
+          ${expanded ? "−" : "+"} ${branch.label}
+        </button>
+        <div class="leaves-connector"></div>
+        <div class="leaves">${leaves}</div>
+      </div>
+    `;
+  }).join("");
+
+  root.innerHTML = `
+    <div class="root-node">
+      DBA Native Workflows
+    </div>
+    <div class="connector"></div>
+    <div class="branches">${rows}</div>
+  `;
+
+  root.querySelectorAll(".branch-node").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-id");
+      open[id] = !open[id];
+      render();
+    });
+  });
+}
+
+document.getElementById("expand-all").addEventListener("click", () => {
+  Object.keys(open).forEach((k) => { open[k] = true; });
+  render();
+});
+document.getElementById("collapse-all").addEventListener("click", () => {
+  Object.keys(open).forEach((k) => { open[k] = false; });
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
